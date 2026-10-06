@@ -38,6 +38,87 @@ Built for **Hackathon 2026**.
 3. The Python backend reads the virtual cable at 48 kHz, resamples to 16 kHz, and runs continuous parallel pipelines for voice analysis and transcription.
 4. FastAPI pushes live metrics, transcriptions, and alerts to the React dashboard via WebSockets.
 
+## 💻 Getting Started
+
+### Prerequisites
+
+Install these first:
+
+*   [Git](https://git-scm.com/downloads)
+*   [Node.js](https://nodejs.org/) 20.19+ (includes `npm`)
+*   [Python](https://www.python.org/downloads/) 3.10+ (on Windows, tick **"Add Python to PATH"** during install)
+
+### 1. Clone the repository
+
+**macOS (Terminal) / Windows (PowerShell or Command Prompt):**
+
+```bash
+git clone https://github.com/YADUNANDAN-SINGH/Veracity.git
+cd Veracity
+```
+
+The project layout:
+
+```text
+Veracity/
+├── veracity-backend/        # FastAPI server (main.py)
+└── veracity-frontend/
+    └── veracity/            # React + Vite app (package.json lives here)
+```
+
+### 2. Run the backend
+
+Open a terminal in the `Veracity` folder.
+
+**macOS:**
+
+```bash
+cd veracity-backend
+python3 -m venv venv
+source venv/bin/activate
+pip install fastapi uvicorn
+uvicorn main:app --reload
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd veracity-backend
+python -m venv venv
+venv\Scripts\Activate.ps1
+pip install fastapi uvicorn
+uvicorn main:app --reload
+```
+
+> If PowerShell says running scripts is disabled, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then try activating again. In Command Prompt, use `venv\Scripts\activate.bat` instead.
+
+The backend runs at **<http://localhost:8000>**. Opening it should return `{"message": "Backend is ready!"}`.
+
+On later runs, you only need to activate the virtual environment and run `uvicorn main:app --reload`.
+
+### 3. Run the frontend
+
+Open a **second** terminal in the `Veracity` folder and leave the backend running.
+
+**macOS / Windows (same commands):**
+
+```bash
+cd veracity-frontend/veracity
+npm install
+npm run dev
+```
+
+The frontend runs at **<http://localhost:5173>**. It should show the welcome text and the message from the backend.
+
+On later runs, you only need `npm run dev` from inside `veracity-frontend/veracity`.
+
+### Troubleshooting
+
+*   **`npm error Missing script: "dev"`**: you are in the wrong folder. `npm` commands must be run inside `veracity-frontend/veracity`, the folder that contains `package.json`.
+*   **Blank page or no backend message**: make sure the backend is running on port 8000, then open the browser DevTools Console to see the error.
+*   **`uvicorn: command not found`**: the virtual environment isn't active. Activate it (step 2) and try again.
+*   **Port already in use**: another copy of the server is already running. Stop it with `Ctrl + C` in its terminal.
+
 ## ⚠️ Limitations & Scope
 *   **Spoofing:** Veracity evaluates the caller ID presented by the telecom network. It cannot unmask the "true" number behind a spoofed call, nor can it track physical location.
 *   **Not Proof:** The AI-voice percentage is a calibrated machine learning estimate designed to protect users, not definitive legal proof.
