@@ -2,7 +2,7 @@
 
 **Live AI-voice & scam-call detection for normal phone calls.**
 
-Veracity is a real-time, fully offline pipeline that listens to an active cellular call on an Android phone and instantly evaluates the likelihood of AI-generated audio, known scam-script patterns, and caller ID risk. It equips users with a live dashboard and generates a ready-to-file JSON evidence report for authorities (1930 / cybercrime.gov.in / Chakshu).
+Veracity is a real-time, fully offline pipeline that listens to an active cellular call on an Android phone and instantly evaluates the likelihood of AI-generated audio, known scam-script patterns, and caller ID risk. It equips users with a live dashboard and generates a ready-to-file JSON evidence report for authorities (1930 / cybercrime.gov.in / Chakshu). 
 
 Built for **Hackathon 2026**.
 
