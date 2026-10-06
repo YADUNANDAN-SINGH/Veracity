@@ -61,10 +61,28 @@ The project layout:
 
 ```text
 Veracity/
-├── veracity-backend/        # FastAPI server (main.py)
+├── docker-compose.yml       # Runs backend + frontend together
+├── veracity-backend/        # FastAPI server (main.py, Dockerfile)
 └── veracity-frontend/
-    └── veracity/            # React + Vite app (package.json lives here)
+    └── veracity/            # React + Vite app (package.json, Dockerfile)
 ```
+
+### Quick start with Docker
+
+If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed, you can skip Node.js and Python setup. From the `Veracity` folder:
+
+```bash
+docker compose up --build
+```
+
+*   Frontend: **<http://localhost:5173>**
+*   Backend: **<http://localhost:8000>**
+
+Stop it with `Ctrl + C`, or run `docker compose down`. Leave out `--build` on later runs unless you changed the code.
+
+> The Docker setup covers the web dashboard and API. The live audio pipeline (scrcpy over USB, BlackHole, Ollama on the GPU) needs direct access to the Mac's audio devices, USB and GPU, so it has to run natively on the host.
+
+To run without Docker, follow steps 2 and 3 below.
 
 ### 2. Run the backend
 
@@ -118,6 +136,8 @@ On later runs, you only need `npm run dev` from inside `veracity-frontend/veraci
 *   **Blank page or no backend message**: make sure the backend is running on port 8000, then open the browser DevTools Console to see the error.
 *   **`uvicorn: command not found`**: the virtual environment isn't active. Activate it (step 2) and try again.
 *   **Port already in use**: another copy of the server is already running. Stop it with `Ctrl + C` in its terminal.
+*   **`no configuration file provided: not found`** (Docker): run `docker compose` from the `Veracity` folder, and check the file is named `docker-compose.yml`.
+*   **`Cannot connect to the Docker daemon`**: Docker Desktop isn't running. Start it and try again.
 
 ## ⚠️ Limitations & Scope
 *   **Spoofing:** Veracity evaluates the caller ID presented by the telecom network. It cannot unmask the "true" number behind a spoofed call, nor can it track physical location.
