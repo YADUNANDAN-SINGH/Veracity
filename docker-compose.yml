@@ -3,9 +3,33 @@ services:
     build: ./veracity-backend
     ports:
       - "8000:8000"
+
+  # Production-style dashboard: nginx serves the build and proxies /api + /ws to the backend.
+  # docker compose up --build  → http://localhost:5173
   frontend:
-    build: ./veracity-frontend/veracity
+    build:
+      context: ./veracity-frontend/veracity
+      target: prod
+    environment:
+      BACKEND_URL: http://backend:8000
     ports:
       - "5173:80"
+    depends_on:
+      - backend
+
+  # Hot-reload dashboard for frontend work (edits in src/ show up instantly).
+  # docker compose --profile dev up --build backend frontend-dev  → http://localhost:5174
+  frontend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./veracity-frontend/veracity
+      target: dev
+    environment:
+      VITE_BACKEND_URL: http://backend:8000
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./veracity-frontend/veracity:/app
+      - /app/node_modules # keep the container's Linux node_modules, not the Mac's
     depends_on:
       - backend

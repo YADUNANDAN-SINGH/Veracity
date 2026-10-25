@@ -1,0 +1,35 @@
+.call-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-000);
+  white-space: nowrap;
+}
+
+.call-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+}
+
+.call-status--starting .call-status__dot {
+  background: var(--risk-medium-fill);
+}
+
+/* The live dot is one of only three things in the app that move */
+.call-status--live .call-status__dot {
+  background: var(--live);
+  box-shadow: 0 0 0 0 rgba(207, 74, 44, 0.5);
+  animation: live-pulse 1.6s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  to {
+    box-shadow: 0 0 0 6px rgba(207, 74, 44, 0);
+  }
+}

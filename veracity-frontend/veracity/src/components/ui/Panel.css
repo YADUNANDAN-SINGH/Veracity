@@ -1,0 +1,25 @@
+.panel {
+  background: var(--surface-000);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel__body {
+  padding: var(--space-4) var(--space-5);
+}
+
+.panel__body--flush {
+  padding: 0;
+}

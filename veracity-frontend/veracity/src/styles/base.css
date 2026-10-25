@@ -1,0 +1,132 @@
+/*
+ * Global element styles and the type scale (Design System §2 · Type and space).
+ * Words are Public Sans; anything a user may read back exactly
+ * (numbers, timestamps, commands, JSON) is IBM Plex Mono with tabular figures.
+ */
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--surface-100);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+}
+
+/* Focus: 2px solid brand ring with a 2px offset, on every control */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- Type scale ---- */
+.t-display {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.t-title {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 650;
+}
+.t-heading {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+.t-subheading {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.t-body-sm {
+  font-size: 13px;
+  line-height: 20px;
+}
+.t-label {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+}
+/* Write overline text in capitals in the JSX; don't rely on text-transform */
+.t-overline {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.t-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+
+/* Inline command chip, e.g. `brew install scrcpy` */
+.code-chip {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-200);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  word-break: break-all;
+}
+
+/* Hide visually, keep for screen readers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Motion: only the live dot, meter fills and input level move. Calm is the point. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

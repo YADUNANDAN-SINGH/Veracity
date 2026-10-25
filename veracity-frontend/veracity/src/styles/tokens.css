@@ -1,0 +1,67 @@
+/*
+ * Veracity design tokens (Design System & Front-end Spec v1, §2).
+ * Every colour, size and radius in the app comes from here.
+ *
+ * Risk colours have three roles:
+ *   --risk-*        text and icons
+ *   --risk-*-soft   backgrounds (badges, banners)
+ *   --risk-*-fill   meter bars and chart marks (never text)
+ */
+:root {
+  /* Surfaces */
+  --surface-000: #ffffff; /* panels, cards, inputs, app header */
+  --surface-100: #f6f5f1; /* page background */
+  --surface-200: #ecebe4; /* wells: table headers, code chips, meter tracks */
+  --line: #d9d6cc; /* hairline dividers and panel borders */
+  --line-strong: #86837a; /* input and toggle borders, meter ticks */
+
+  /* Text */
+  --ink: #1b2430;
+  --ink-muted: #535a64;
+
+  /* Brand */
+  --brand: #0e5a60;
+  --brand-hover: #0a454a;
+  --brand-soft: #dcecea;
+  --on-brand: #ffffff;
+  --focus: var(--brand);
+
+  /* Risk: low (blue) → medium (amber) → high (orange-red) */
+  --risk-low: #1f5c94;
+  --risk-low-soft: #e3edf7;
+  --risk-low-fill: #2f74b5;
+  --risk-medium: #7d5200;
+  --risk-medium-soft: #fbf0d6;
+  --risk-medium-fill: #c98500;
+  --risk-high: #a8321c;
+  --risk-high-soft: #fbe6e1;
+  --risk-high-fill: #cf4a2c;
+  --live: var(--risk-high-fill);
+
+  /* Type families */
+  --font-sans: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Depth: borders do the work; this only lifts a panel off the paper */
+  --shadow-panel: 0 1px 2px rgba(27, 36, 48, 0.06);
+
+  /* Layout */
+  --header-height: 64px;
+  --content-width: 720px;
+}

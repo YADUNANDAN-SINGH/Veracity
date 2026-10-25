@@ -1,0 +1,43 @@
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.toggle__switch {
+  flex: none;
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-200);
+  cursor: pointer;
+}
+
+.toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  transition: transform 0.15s ease;
+}
+
+.toggle__switch[aria-checked='true'] {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.toggle__switch[aria-checked='true'] .toggle__thumb {
+  background: var(--on-brand);
+  transform: translateX(16px);
+}
+
+.toggle__label {
+  display: block;
+  margin-top: 2px;
+  cursor: pointer;
+}
