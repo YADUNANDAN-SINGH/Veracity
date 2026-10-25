@@ -27,14 +27,14 @@ export function fetchHealth({ signal } = {}) {
 
 /* Exact commands shown to the user when a check fails (Design System §4, Step 1). */
 export const FIX_COMMANDS = {
-  backend: 'uvicorn app.main:app --port 8000',
+  backend: 'uvicorn main:app --port 8000',
   adb: 'brew install --cask android-platform-tools',
   scrcpy: 'brew install scrcpy',
   audio: 'brew install blackhole-2ch',
   voice: "python -c \"from transformers import pipeline; pipeline('audio-classification', model='mo-thecreator/Deepfake-audio-detection')\"",
   whisper: "python -c \"from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')\"",
   llm: 'ollama pull llama3.1:8b',
-  simulation: 'VERA_FAKE=1 uvicorn app.main:app --port 8000',
+  simulation: 'VERA_FAKE=1 uvicorn main:app --port 8000',
 }
 
 const REQUIRED_AUDIO_DEVICE = 'BlackHole 2ch'

@@ -33,3 +33,33 @@ def get_number_details(raw: str, default_region: str = "IN"):
         "national_digits": str(n.national_number)
     }
 '''
+
+# <------- Real Implementation --------->
+
+class InvalidNumberError(ValueError):
+    """Raised when the input can't be read as a phone number at all."""
+
+
+def get_number_details(raw: str, default_region: str = "IN"):
+    default_region = default_region.upper()
+
+    try:
+        n = pn.parse(raw, default_region)
+    except pn.NumberParseException as e:
+        raise InvalidNumberError("That doesn't look like a phone number.") from e
+
+    return {
+        "valid": pn.is_valid_number(n),
+        # e.g. "MOBILE", "FIXED_LINE", "VOIP" (pn.number_type() alone is just an int)
+        "number_type": pn.PhoneNumberType.to_string(pn.number_type(n)),
+        "country": geocoder.country_name_for_number(n, "en") or None,
+        # Finer than country: for Indian mobiles this is usually the telecom circle / state
+        "location": geocoder.description_for_number(n, "en") or None,
+        # Carrier the number was first issued to; ported numbers may have moved since
+        "original_carrier": carrier.name_for_number(n, "en") or None,
+        "is_international": n.country_code != pn.country_code_for_region(default_region),
+        "e164_format": pn.format_number(n, pn.PhoneNumberFormat.E164),
+        "national_digits": str(n.national_number),
+        # phonenumbers returns ["Etc/Unknown"] when it can't tell
+        "timezones": [tz for tz in timezone.time_zones_for_number(n) if tz != "Etc/Unknown"],
+    }

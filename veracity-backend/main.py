@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes import health, number
+
 app = FastAPI()
 
 app.add_middleware(
@@ -10,6 +12,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(health.router)
+app.include_router(number.router)
 
 @app.get("/")
 def read_root():

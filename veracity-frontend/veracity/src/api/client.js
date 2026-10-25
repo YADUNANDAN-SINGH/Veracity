@@ -41,7 +41,10 @@ export async function apiRequest(path, { timeoutMs = DEFAULT_TIMEOUT_MS, signal,
   }
 
   if (!response.ok) {
-    throw new ApiError(`Request failed (${response.status})`, { status: response.status })
+    // FastAPI puts a readable reason in `detail` when we raise HTTPException
+    const body = await response.json().catch(() => null)
+    const message = typeof body?.detail === 'string' ? body.detail : `Request failed (${response.status})`
+    throw new ApiError(message, { status: response.status })
   }
   return response.json()
 }
