@@ -9,15 +9,11 @@ import json
 import os
 import shutil # it checks for the existence of a command in PATH
 import subprocess # this lets run python commands and capture their output;
+import sys
 import urllib.request
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-
-try:
-    import sounddevice as sd
-except OSError:  # PortAudio missing (e.g. the Docker image): report no audio device
-    sd = None
 
 router = APIRouter(prefix="/api", tags=["health"])
 
@@ -52,20 +48,29 @@ def _scrcpy_version() -> str | None:
     return first[1] if len(first) > 1 else None
 
 
+# Lists audio devices as JSON. Run in a fresh Python each time: a new process
+# always sees devices added since start-up, and re-initialising PortAudio
+# inside the server (once per health check, from several threads) crashed it.
+_LIST_DEVICES = (
+    "import json, sounddevice as sd; "
+    "print(json.dumps([[d['name'], d['max_input_channels'], d['default_samplerate']] "
+    "for d in sd.query_devices()]))"
+)
+
+
 def _audio_input() -> tuple[str | None, int | None]:
     """Name and sample rate of the AUDIO_DEVICE input, or (None, None) if absent."""
-    if sd is None:
-        return None, None
     try:
-        # PortAudio caches the device list at start-up; re-scan so "Check again"
-        # sees a device added while the backend is running
-        sd._terminate()
-        sd._initialize()
-        for device in sd.query_devices():
-            if device["name"] == AUDIO_DEVICE and device["max_input_channels"] > 0:
-                return device["name"], int(device["default_samplerate"])
-    except sd.PortAudioError:
-        pass
+        result = subprocess.run(
+            [sys.executable, "-c", _LIST_DEVICES], capture_output=True, text=True, timeout=5
+        )
+        devices = json.loads(result.stdout) if result.returncode == 0 else []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        # PortAudio missing (e.g. the Docker image) or the scan hung
+        return None, None
+    for name, input_channels, sample_rate in devices:
+        if name == AUDIO_DEVICE and input_channels > 0:
+            return name, int(sample_rate)
     return None, None
 
 
