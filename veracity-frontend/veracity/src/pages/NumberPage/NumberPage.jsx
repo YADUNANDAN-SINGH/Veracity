@@ -1,16 +1,21 @@
 /*
  * Step 2 · Check number.
  *
- * The user types the caller's number; POST /api/number/check returns what
- * public numbering data says about it (valid?, line type, country, carrier,
- * time zone). "Continue" unlocks once a check has come back, valid or not:
- * an invalid number is itself worth carrying into the report.
+ * The caller's number comes from the phone itself when it can: while this
+ * page is open it polls GET /api/call/state, and when the USB-connected phone
+ * rings with a visible number, that number is filled in and checked at once.
+ * Otherwise the user types it. POST /api/number/check returns what public
+ * numbering data says about it (valid?, line type, country, carrier, time zone).
+ * "Continue" unlocks once a check has come back, valid or not: an invalid
+ * number is itself worth carrying into the report.
  */
 import { useState } from 'react'
 import Panel from '../../components/ui/Panel'
 import Button from '../../components/ui/Button'
 import AlertBanner from '../../components/ui/AlertBanner'
+import Icon from '../../components/ui/Icon'
 import { buildNumberRows } from '../../api/number'
+import { useCallState } from '../../hooks/useCallState'
 import './NumberPage.css'
 
 /**
@@ -23,6 +28,15 @@ export default function NumberPage({ numberState, onBack, onContinue }) {
   const { details, loading, error, check } = numberState
   const [number, setNumber] = useState(details?.e164_format ?? '')
   const trimmed = number.trim()
+
+  // A ringing phone that shares the caller's number fills the field and checks it
+  const call = useCallState({
+    onIncomingNumber: (incoming) => {
+      setNumber(incoming)
+      check(incoming)
+    },
+  })
+  const callLine = describeCall(call)
 
   function handleSubmit(event) {
     event.preventDefault()
@@ -41,6 +55,10 @@ export default function NumberPage({ numberState, onBack, onContinue }) {
       </div>
 
       <Panel title="Caller's number">
+        <p className={`number-page__call number-page__call--${callLine.tone} t-body-sm`} role="status">
+          <Icon name="phone" size={14} />
+          {callLine.text}
+        </p>
         <form className="number-page__form" onSubmit={handleSubmit}>
           <label className="t-label" htmlFor="caller-number">
             Phone number
@@ -102,4 +120,17 @@ export default function NumberPage({ numberState, onBack, onContinue }) {
       </footer>
     </main>
   )
+}
+
+/** One line above the field saying what the phone is doing right now. */
+function describeCall({ connected, state, number, error }) {
+  if (error) return { tone: 'muted', text: "Can't read the phone's call state. Type the number instead." }
+  if (connected === null) return { tone: 'muted', text: 'Checking the phone…' }
+  if (!connected) {
+    return { tone: 'muted', text: 'Phone not connected. Plug it in to fill the number automatically, or type it.' }
+  }
+  const what = state === 'ringing' ? 'Incoming call' : 'On a call'
+  if (state === 'idle') return { tone: 'muted', text: "Waiting for a call. When the phone rings, the caller's number appears here." }
+  if (number) return { tone: 'active', text: `${what} from ${number}. Checked automatically.` }
+  return { tone: 'active', text: `${what}. The phone didn't share the caller's number, so type it from the screen.` }
 }

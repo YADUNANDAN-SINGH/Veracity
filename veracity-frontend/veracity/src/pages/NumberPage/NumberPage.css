@@ -15,6 +15,27 @@
   max-width: 600px;
 }
 
+/* What the USB-connected phone is doing: waiting, ringing, on a call */
+.number-page__call {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-200);
+  color: var(--ink-muted);
+}
+
+.number-page__call--active {
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+
+.number-page__call--active svg {
+  color: var(--brand);
+}
+
 .number-page__form {
   display: grid;
   gap: var(--space-2);

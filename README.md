@@ -43,7 +43,7 @@ Read this first so you know what is real and what is still planned.
 | Project skeleton (FastAPI + React + Docker) | ✅ Done | |
 | Design system in code (colours, fonts, components) | ✅ Done | `src/styles/tokens.css`, `src/components/ui/` |
 | **Step 1 · Check setup** screen + `GET /api/health` | 🟡 Partly done | adb, phone, scrcpy and the audio input (BlackHole 2ch via `sounddevice`) are really checked. Models are hard-coded as "not ready". |
-| **Step 2 · Check number** screen + `POST /api/number/check` | 🟡 Partly done | Validity, line type, country, original carrier, time zone. Not yet: 1600/140 series rules, rule score, community reports, ML %. |
+| **Step 2 · Check number** screen + `POST /api/number/check` | 🟡 Partly done | Fills in the number from an incoming call (`GET /api/call/state`). Validity, line type, country, original carrier, time zone. Not yet: 1600/140 series rules, rule score, community reports, ML %. |
 | Simulation mode (`VERA_FAKE=1`) | 🟡 Partly done | The flag is read and unlocks Step 1. Scripted fake call events are not built yet. |
 | **Step 3 · Live call** (WebSocket, live screen) | ❌ Not started | |
 | AI-voice detection (wav2vec2 model) | ❌ Not started | |
@@ -402,6 +402,15 @@ Response `200`:
 Response `422`: `{"detail": "That doesn't look like a phone number."}`
 
 `original_carrier` is the operator the number range was **first** issued to. The number may have been ported since.
+
+### `GET /api/call/state` — built
+
+Polled about once a second by Step 2. Reads `adb shell dumpsys telephony.registry` on the USB-connected phone.
+
+```json
+{ "connected": true, "state": "ringing", "number": "+919876543210" }
+```
+`state` is `idle`, `ringing` or `in_call`. `number` is `null` when there's no call, or when the phone hides it (common on Android 12+). Then the user types the number. When a number arrives, Step 2 fills it in and runs `POST /api/number/check` automatically.
 
 ### Planned (from the project document)
 
