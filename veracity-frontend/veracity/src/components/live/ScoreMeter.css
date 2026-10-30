@@ -1,0 +1,25 @@
+.score-meter {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.score-meter__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Numbers are mono with tabular figures so the digits don't jump each second */
+.score-meter__value {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-meter__of {
+  margin-left: 2px;
+  color: var(--ink-muted);
+}

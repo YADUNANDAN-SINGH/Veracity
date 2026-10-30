@@ -1,0 +1,118 @@
+.voice-timeline {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.voice-timeline__frame {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--track);
+}
+
+.voice-timeline svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+
+/* Ruler */
+.voice-timeline__ruler {
+  fill: var(--track);
+}
+.voice-timeline__tick {
+  stroke: var(--track-line);
+  stroke-width: 1;
+}
+.voice-timeline__time {
+  fill: var(--track-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Track */
+.voice-timeline__track {
+  fill: #161d25;
+}
+.voice-timeline__centre {
+  stroke: var(--track-line);
+  stroke-width: 1;
+}
+
+.voice-timeline__bar {
+  transition: fill 0.4s ease;
+}
+.voice-timeline__bar--human {
+  fill: var(--wave-human);
+}
+.voice-timeline__bar--uncertain {
+  fill: var(--wave-uncertain);
+}
+.voice-timeline__bar--ai {
+  fill: var(--wave-ai);
+}
+.voice-timeline__bar--silent {
+  fill: var(--wave-silent);
+}
+
+/* Playhead and hover cursor */
+.voice-timeline__playhead line {
+  stroke: var(--live);
+  stroke-width: 1.5;
+}
+.voice-timeline__playhead path {
+  fill: var(--live);
+}
+.voice-timeline__cursor {
+  stroke: #ffffff;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.voice-timeline__readout {
+  position: absolute;
+  top: 28px;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgba(10, 14, 19, 0.85);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* Legend: swatch plus words, never colour alone */
+.voice-timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.voice-timeline__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.voice-timeline__key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.voice-timeline__key--human {
+  background: var(--wave-human);
+}
+.voice-timeline__key--uncertain {
+  background: var(--wave-uncertain);
+}
+.voice-timeline__key--ai {
+  background: var(--wave-ai);
+}

@@ -38,6 +38,15 @@
   --risk-high-fill: #cf4a2c;
   --live: var(--risk-high-fill);
 
+  /* Voice timeline: a dark editing track, the waveform coloured by verdict */
+  --track: #1e2731;
+  --track-line: #3a4552;
+  --track-text: #a9b2bd;
+  --wave-human: #8cc4ec; /* light blue */
+  --wave-uncertain: #e6a93a;
+  --wave-ai: #ef5a3c;
+  --wave-silent: #4c5866;
+
   /* Type families */
   --font-sans: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;

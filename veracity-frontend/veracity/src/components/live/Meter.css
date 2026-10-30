@@ -1,0 +1,70 @@
+.meter {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.meter__track {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-200);
+  overflow: hidden;
+}
+
+.meter__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+/* Motion: meter fills ease over 0.4s, the input level follows in 0.1s */
+.meter__fill--meter {
+  transition: width 0.4s ease;
+}
+.meter__fill--level {
+  transition: width 0.1s linear;
+}
+
+.meter__fill--low {
+  background: var(--risk-low-fill);
+}
+.meter__fill--medium {
+  background: var(--risk-medium-fill);
+}
+.meter__fill--high {
+  background: var(--risk-high-fill);
+}
+.meter__fill--brand {
+  background: var(--brand);
+}
+.meter__fill--muted {
+  background: var(--line-strong);
+}
+
+/* Thresholds cut the bar with a hairline of paper */
+.meter__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--surface-000);
+}
+
+.meter__scale {
+  position: relative;
+  height: 16px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.meter__scale span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.meter__scale span:first-child {
+  transform: none;
+}
+.meter__scale span:last-child {
+  transform: translateX(-100%);
+}

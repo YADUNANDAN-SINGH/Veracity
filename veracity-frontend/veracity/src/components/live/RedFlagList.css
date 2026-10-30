@@ -1,0 +1,77 @@
+.red-flags {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.red-flags__empty {
+  padding: var(--space-4) var(--space-5);
+}
+
+.red-flag {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.red-flag:first-child {
+  border-top: 0;
+}
+
+.red-flag__icon {
+  margin-top: 1px;
+}
+
+.red-flag--high .red-flag__icon {
+  color: var(--risk-high);
+}
+.red-flag--medium .red-flag__icon {
+  color: var(--risk-medium);
+}
+.red-flag--low .red-flag__icon {
+  color: var(--risk-low);
+}
+
+.red-flag__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.red-flag__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.red-flag__severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.red-flag__severity i {
+  width: 3px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.red-flag--high .red-flag__severity i.is-on {
+  background: var(--risk-high-fill);
+}
+.red-flag--medium .red-flag__severity i.is-on {
+  background: var(--risk-medium-fill);
+}
+.red-flag--low .red-flag__severity i.is-on {
+  background: var(--risk-low-fill);
+}
+
+.red-flag__severity span {
+  margin-left: var(--space-1);
+}
