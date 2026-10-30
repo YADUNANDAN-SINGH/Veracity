@@ -55,7 +55,7 @@ npm run build      # production bundle in dist/
 npm run lint
 ```
 
-You don't need a phone to work on the UI. Start the backend in simulation mode with `VERA_FAKE=1 uvicorn app.main:app --port 8000`.
+You don't need a phone to work on the UI. Start the backend in simulation mode with `VERA_FAKE=1 uvicorn main:app --port 8000` (from `veracity-backend/`).
 
 ## Docker
 
