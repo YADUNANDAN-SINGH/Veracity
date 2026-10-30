@@ -11,7 +11,9 @@ services:
       context: ./veracity-frontend/veracity
       target: prod
     environment:
-      BACKEND_URL: http://backend:8000
+      # Real phone: run the backend on the Mac (Docker can't see USB) and start with
+      # BACKEND_URL=http://host.docker.internal:8000 docker compose up -d --no-deps frontend
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
     ports:
       - "5173:80"
     depends_on:

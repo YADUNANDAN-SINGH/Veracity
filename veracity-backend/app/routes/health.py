@@ -6,8 +6,8 @@
 # VERA_FAKE=1 to use simulation mode and continue past Step 1 meanwhile.
 
 import os
-import shutil
-import subprocess
+import shutil # it checks for the existence of a command in PATH
+import subprocess # this lets run python commands and capture their output;
 
 from fastapi import APIRouter, Request
 
