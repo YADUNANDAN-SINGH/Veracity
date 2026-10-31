@@ -69,10 +69,11 @@ function scriptScore(categories) {
 
 /**
  * Start the scripted call.
- * @param {{ callerNumber: string, onEvent: (event: object) => void }} options
+ * @param {{ callerNumber: string, number?: object, onEvent: (event: object) => void }} options
+ *   number: the Step 2 lookup, copied into the report (the backend will do its own)
  * @returns {{ stop: () => object }} stop() ends the call and returns its report
  */
-export function startDemoCall({ callerNumber, onEvent }) {
+export function startDemoCall({ callerNumber, number, onEvent }) {
   const startedAt = new Date()
   const smoother = { ema: null, run: 0, state: 'LIKELY_HUMAN' }
   const categories = new Set()
@@ -145,7 +146,7 @@ export function startDemoCall({ callerNumber, onEvent }) {
     const endedAt = new Date()
     const voicePeak = windows.length ? Math.max(...windows.map((w) => w.p_ai)) : 0
     const script = scriptScore(categories)
-    const report = buildReport({ callerNumber, startedAt, endedAt, windows, voicePeak, script, flags, finalState: smoother.state })
+    const report = buildReport({ callerNumber, number, startedAt, endedAt, windows, voicePeak, script, flags, finalState: smoother.state })
     onEvent({ type: 'report', report })
     onEvent({ type: 'ended' })
     return report
@@ -154,14 +155,16 @@ export function startDemoCall({ callerNumber, onEvent }) {
   return { stop }
 }
 
-/** Project Document §1.7 report, with §1.8 fusion. The number section waits for /api/number/analyze. */
-function buildReport({ callerNumber, startedAt, endedAt, windows, voicePeak, script, flags, finalState }) {
+/** Project Document §1.7 report, with §1.8 fusion (the same as the backend's app/feature/report.py). */
+function buildReport({ callerNumber, number, startedAt, endedAt, windows, voicePeak, script, flags, finalState }) {
   const voicePct = Math.round(voicePeak * 100)
-  const weighted = Math.round(0.4 * voicePct + 0.35 * script)
+  const numberScore = number?.rule_score ?? null // from /api/number/check
+  const weighted = Math.round(0.25 * (numberScore ?? 0) + 0.4 * voicePct + 0.35 * script)
   const score = Math.max(weighted, voicePct >= 85 ? voicePct : 0, script >= 80 ? script : 0)
   const reasons = []
   if (voicePct >= 40) reasons.push(`Voice sounded synthetic (peak ${voicePct}%)`)
   if (script > 0) reasons.push(`Scam-script red flags (score ${script})`)
+  if (numberScore > 0 && number.rule_reasons?.length) reasons.push(`Number: ${number.rule_reasons[0]}`)
 
   return {
     schema_version: '1.0',
@@ -175,9 +178,21 @@ function buildReport({ callerNumber, startedAt, endedAt, windows, voicePeak, scr
       duration_s: Math.round((endedAt - startedAt) / 1000),
       capture_method: 'demo_replay',
     },
-    number: null,
+    number: number && {
+      e164: number.e164_format,
+      valid: number.valid,
+      type: number.number_type,
+      country: number.country,
+      original_carrier: number.original_carrier,
+      series: number.series,
+      location: number.location,
+      community_reports: number.community_reports,
+      reports_7d: number.reports_7d,
+      rule_score: numberScore,
+      reasons: number.rule_reasons ?? [],
+    },
     voice: {
-      model_id: 'mo-thecreator/Deepfake-audio-detection',
+      model_id: 'Gustking/wav2vec2-large-xlsr-deepfake-audio-classification',
       windows,
       max_p_ai: voicePeak,
       final_state: finalState,

@@ -17,3 +17,9 @@ dist/
 .idea/
 .vscode/
 .DS_Store
+
+# Local data: community reports, saved call reports and recordings
+veracity-backend/app/data/
+
+# Test cache
+.pytest_cache/

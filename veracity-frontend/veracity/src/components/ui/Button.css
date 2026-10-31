@@ -10,6 +10,7 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn--md {
@@ -36,7 +37,7 @@
   color: var(--ink);
 }
 .btn--secondary:hover:not(:disabled) {
-  background: var(--surface-100);
+  background: var(--surface-200);
 }
 
 /* Text-style action, e.g. "Check again", "Open Chakshu" */

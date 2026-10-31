@@ -2,16 +2,22 @@
  * Veracity design tokens (Design System & Front-end Spec v1, §2).
  * Every colour, size and radius in the app comes from here.
  *
+ * Light is the default. The dark set below applies when the OS is dark,
+ * unless the user picked a theme (data-theme on <html>, see useTheme).
+ *
  * Risk colours have three roles:
  *   --risk-*        text and icons
  *   --risk-*-soft   backgrounds (badges, banners)
  *   --risk-*-fill   meter bars and chart marks (never text)
  */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --surface-000: #ffffff; /* panels, cards, inputs, app header */
   --surface-100: #f6f5f1; /* page background */
   --surface-200: #ecebe4; /* wells: table headers, code chips, meter tracks */
+  --surface-header: var(--surface-000); /* the app header */
   --line: #d9d6cc; /* hairline dividers and panel borders */
   --line-strong: #86837a; /* input and toggle borders, meter ticks */
 
@@ -40,6 +46,9 @@
 
   /* Voice timeline: a dark editing track, the waveform coloured by verdict */
   --track: #1e2731;
+  --track-deep: #161d25; /* the waveform lane */
+  --track-cursor: rgba(255, 255, 255, 0.55);
+  --track-readout: rgba(10, 14, 19, 0.85);
   --track-line: #3a4552;
   --track-text: #a9b2bd;
   --wave-human: #8cc4ec; /* light blue */
@@ -73,4 +82,84 @@
   /* Layout */
   --header-height: 64px;
   --content-width: 720px;
+}
+
+/* Dark: follow the OS unless the user chose light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    /* GitHub dark: near-black canvas, blacker header, hairline borders */
+    --surface-000: #0d1117; /* panels and inputs: the canvas itself, edged by borders */
+    --surface-100: #0d1117; /* page */
+    --surface-200: #161b22; /* wells: code chips, meter tracks, hovers */
+    --surface-header: #010409;
+    --line: #30363d;
+    --line-strong: #6e7681;
+
+    --ink: #e6edf3;
+    --ink-muted: #9198a1;
+
+    /* Brand teal, lifted so it reads on black */
+    --brand: #3fb9a8;
+    --brand-hover: #5fcfbf;
+    --brand-soft: #0f2623;
+    --on-brand: #010409;
+
+    /* GitHub's accent, attention and danger hues */
+    --risk-low: #58a6ff;
+    --risk-low-soft: #0f1d31;
+    --risk-low-fill: #388bfd;
+    --risk-medium: #d29922;
+    --risk-medium-soft: #251f12;
+    --risk-medium-fill: #bb8009;
+    --risk-high: #ff7b72;
+    --risk-high-soft: #2a1519;
+    --risk-high-fill: #f85149;
+
+    --shadow-panel: none; /* borders do all the work on black */
+
+    --track: #010409;
+    --track-deep: #000000;
+    --track-line: #21262d;
+  }
+}
+
+/* Dark: chosen in the header */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* GitHub dark: near-black canvas, blacker header, hairline borders */
+  --surface-000: #0d1117; /* panels and inputs: the canvas itself, edged by borders */
+  --surface-100: #0d1117; /* page */
+  --surface-200: #161b22; /* wells: code chips, meter tracks, hovers */
+  --surface-header: #010409;
+  --line: #30363d;
+  --line-strong: #6e7681;
+
+  --ink: #e6edf3;
+  --ink-muted: #9198a1;
+
+  /* Brand teal, lifted so it reads on black */
+  --brand: #3fb9a8;
+  --brand-hover: #5fcfbf;
+  --brand-soft: #0f2623;
+  --on-brand: #010409;
+
+  /* GitHub's accent, attention and danger hues */
+  --risk-low: #58a6ff;
+  --risk-low-soft: #0f1d31;
+  --risk-low-fill: #388bfd;
+  --risk-medium: #d29922;
+  --risk-medium-soft: #251f12;
+  --risk-medium-fill: #bb8009;
+  --risk-high: #ff7b72;
+  --risk-high-soft: #2a1519;
+  --risk-high-fill: #f85149;
+
+  --shadow-panel: none; /* borders do all the work on black */
+
+  --track: #010409;
+  --track-deep: #000000;
+  --track-line: #21262d;
 }

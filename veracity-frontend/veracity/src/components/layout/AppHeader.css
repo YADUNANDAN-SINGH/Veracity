@@ -8,7 +8,7 @@
   gap: var(--space-5);
   height: var(--header-height);
   padding: 0 var(--space-5);
-  background: var(--surface-000);
+  background: var(--surface-header);
   border-bottom: 1px solid var(--line);
 }
 
@@ -29,6 +29,24 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--ink-muted);
+}
+
+/* Light/dark switch: an icon button, quiet like "Offline" */
+.app-header__theme {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.app-header__theme:hover {
+  background: var(--surface-200);
+  color: var(--ink);
 }
 
 /* Dashed border marks it as a non-real state at a glance */

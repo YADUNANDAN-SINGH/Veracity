@@ -21,8 +21,10 @@ router = APIRouter(prefix="/api", tags=["health"])
 # speakerphone fallback (e.g. "MacBook Air Microphone")
 AUDIO_DEVICE = os.environ.get("VERA_AUDIO_DEVICE", "BlackHole 2ch")
 
-VOICE_MODEL = "mo-thecreator/Deepfake-audio-detection"
-WHISPER_SIZE = os.environ.get("VERA_WHISPER_MODEL", "small")
+VOICE_MODEL = os.environ.get("VERA_VOICE_MODEL", "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification")  # same default as app/feature/voice.py
+WHISPER_SIZE = os.environ.get("VERA_WHISPER_MODEL", "large-v3-turbo")  # same default as app/feature/transcriber.py
+# Where faster-whisper downloads each size from
+WHISPER_REPOS = {"large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo"}
 LLM_MODEL = os.environ.get("VERA_LLM_MODEL", "llama3.1:8b")
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
@@ -112,10 +114,11 @@ def health(request: Request):
         "audio_sample_rate": audio_sample_rate,
         "models": {
             "voice": {"id": VOICE_MODEL, "ready": _hf_cached(VOICE_MODEL, "model.safetensors")},
-            # faster-whisper downloads "small" from Systran/faster-whisper-small
             "whisper": {
                 "id": WHISPER_SIZE,
-                "ready": _hf_cached(f"Systran/faster-whisper-{WHISPER_SIZE}", "model.bin"),
+                "ready": _hf_cached(
+                    WHISPER_REPOS.get(WHISPER_SIZE, f"Systran/faster-whisper-{WHISPER_SIZE}"), "model.bin"
+                ),
             },
             "llm": {"id": LLM_MODEL, "ready": _ollama_has(LLM_MODEL)},
         },

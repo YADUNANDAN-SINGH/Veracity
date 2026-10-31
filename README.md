@@ -6,13 +6,13 @@
 
 Veracity listens to a normal phone call on an Android phone plugged into a laptop by USB. While the call is still going on, a web dashboard shows:
 
-1. **The number:** what public numbering data says about the caller's number, plus a risk score with reasons.
-2. **The voice:** how likely it is that the caller's voice is AI-generated, as a percentage updated every second.
-3. **The words:** whether the conversation follows a known scam script ("digital arrest", "share the OTP", "safe account"…), with the exact words as evidence.
+1. **The number:** what public numbering data says about the caller's number, and a risk score with its reasons.
+2. **The voice:** how likely it is that the caller's voice is AI-generated, updated every second.
+3. **The words:** a live transcript, with the caller's exact words highlighted when they match a known scam script ("digital arrest", "share the OTP", "safe account"…).
 
 When the call ends, Veracity writes a **JSON evidence report** the victim can attach when reporting on **1930**, **cybercrime.gov.in** or **Chakshu**.
 
-Everything runs **offline on one laptop**. There are no cloud APIs, no internet during the call, and audio is never saved unless the user turns that on.
+Everything runs **offline on one laptop**. There are no cloud APIs and no internet during the call, and audio is never saved unless the user turns that on.
 
 Built for **Hackathon 2026 (30–31 October 2026)**.
 
@@ -20,86 +20,86 @@ Built for **Hackathon 2026 (30–31 October 2026)**.
 
 ## Contents
 
-1. [Project status](#1-project-status)
+1. [Status](#1-status)
 2. [How it works](#2-how-it-works)
 3. [Getting started](#3-getting-started)
 4. [Connecting a real phone](#4-connecting-a-real-phone)
-5. [Codebase tour](#5-codebase-tour)
-6. [API reference](#6-api-reference)
-7. [How to add a feature](#7-how-to-add-a-feature)
-8. [Rules we follow](#8-rules-we-follow)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Limitations](#10-limitations)
-11. [Further reading](#11-further-reading)
+5. [Configuration](#5-configuration)
+6. [Codebase tour](#6-codebase-tour)
+7. [API reference](#7-api-reference)
+8. [The evidence report](#8-the-evidence-report)
+9. [Measured results](#9-measured-results)
+10. [Testing](#10-testing)
+11. [Troubleshooting](#11-troubleshooting)
+12. [Limitations](#12-limitations)
+13. [Rules we follow](#13-rules-we-follow)
+14. [Further reading](#14-further-reading)
 
 ---
 
-## 1. Project status
-
-Read this first so you know what is real and what is still planned.
+## 1. Status
 
 | Part | Status | Notes |
-|---|---|---|
-| Project skeleton (FastAPI + React + Docker) | ✅ Done | |
-| Design system in code (colours, fonts, components) | ✅ Done | `src/styles/tokens.css`, `src/components/ui/` |
-| **Step 1 · Check setup** screen + `GET /api/health` | 🟡 Partly done | adb, phone, scrcpy and the audio input (BlackHole 2ch via `sounddevice`) are really checked. Models are hard-coded as "not ready". |
-| **Step 2 · Check number** screen + `POST /api/number/check` | 🟡 Partly done | Fills in the number from an incoming call (`GET /api/call/state`). Validity, line type, country, original carrier, time zone. Not yet: 1600/140 series rules, rule score, community reports, ML %. |
-| Simulation mode (`VERA_FAKE=1`) | 🟡 Partly done | The flag is read and unlocks Step 1. Scripted fake call events are not built yet. |
-| **Step 3 · Live call** (WebSocket, live screen) | ❌ Not started | |
-| AI-voice detection (wav2vec2 model) | ❌ Not started | |
-| Scam-script detection (Whisper + rules + local LLM) | ❌ Not started | |
-| **Step 4 · Report** (JSON report, risk fusion) | ❌ Not started | |
-| Tests | ❌ None yet | |
+| --- | --- | --- |
+| **Step 1 · Check setup** | ✅ Working | adb, phone, scrcpy, audio input and all three models are really checked. |
+| **Step 2 · Check number** | ✅ Working | Validity, line type, India series (1600 / 140), country, original carrier, community reports and a transparent rule score. Fills in the number from an incoming call. |
+| **Step 3 · Live call** | ✅ Working | Real capture from the phone, AI-voice score every second, live transcript, red flags, alerts. |
+| **Step 4 · Report** | ✅ Working | Risk fusion, JSON report saved and downloadable, reporting links, community reports. |
+| Light and dark themes | ✅ Working | Follows the system; toggle in the header. |
+| Tests | ✅ 13 passing | Number score, fusion, report schema, report and community endpoints. |
+| AI-voice accuracy on real calls | 🟡 Needs calibration | Good on simulated phone audio (see [§9](#9-measured-results)); still raises some false alarms on real calls. Thresholds must be calibrated on recordings from your own phone. |
+| Number ML model (§1.4 of the project document) | ❌ Not built | The rule score works; the logistic-regression % does not exist yet. |
+| Backend simulation mode (`VERA_FAKE=1`) | 🟡 Partial | It only lets Step 1 continue without a phone. A live call still needs the BlackHole audio input. |
 
 ---
 
 ## 2. How it works
 
+### The pipeline
+
+```text
+Caller ──call──► Android phone ──USB (adb)──► scrcpy --audio-source=voice-call-downlink
+                                                   │  plays the caller on the Mac
+                                                   ▼
+                                  macOS Multi-Output Device ──► speakers/headphones + BlackHole 2ch
+                                                   │
+                                                   ▼
+                                  Python reads BlackHole: 0.1 s blocks, 48 kHz → mono 16 kHz
+                                        │                                   │
+                          every 1 s, last 4 s of audio            6–12 s chunks, cut at pauses
+                                        ▼                                   ▼
+                          wav2vec2 XLS-R deepfake model           faster-whisper large-v3-turbo
+                          → calibrated AI-voice %                  → transcript
+                          → smoothed: human / uncertain / AI       → 11 scam-rule categories
+                                        │                          → local LLM (Ollama) every ~16 s
+                                        └───────────────┬──────────────────┘
+                                                        ▼
+                     number rule score ──► fusion ──► JSON report ──► FastAPI ──WebSocket──► dashboard
+```
+
+**Why a USB cable?** Android doesn't let normal apps record phone calls. `scrcpy` runs its capture code on the phone through `adb` (Android's developer connection), and since v3.2 it can capture the caller's side of a call. Whether that works depends on the phone model, so [test your phone first](#44-the-critical-test-does-this-phone-give-you-call-audio).
+
 ### The two programs
 
-```
-┌──────────────────────────┐   HTTP / WebSocket   ┌───────────────────────────┐   runs on the Mac    ┌──────────────────┐
-│  FRONTEND · React + Vite │ ───────────────────► │  BACKEND · FastAPI        │ ───────────────────► │ adb, scrcpy,     │
-│  veracity-frontend/      │ ◄─────────────────── │  veracity-backend/        │ ◄─────────────────── │ phonenumbers,    │
-│  http://localhost:5173   │        JSON          │  http://localhost:8000    │                      │ (later) ML models│
-└──────────────────────────┘                      └───────────────────────────┘                      └──────────────────┘
-```
-
-- **The frontend only draws screens.** It knows nothing about phones or numbers. It asks the backend and shows the answer.
-- **The backend does all the real work.** It runs command-line tools and Python libraries on the Mac and replies with JSON.
-- The browser never talks to the phone. Everything goes **browser → backend → Mac tools → phone**.
-
-### The full pipeline (target design)
-
-```
-Caller phone ──call──► Victim's Android phone ──USB (adb)──► scrcpy --audio-source=voice-call-downlink
-                                                                  │
-                                                                  ▼
-                                              macOS Multi-Output Device ──► speakers + BlackHole 2ch (virtual cable)
-                                                                  │
-                                                                  ▼
-                                              Python reads BlackHole at 48 kHz → mono 16 kHz
-                                                   │                                  │
-                                    every 1 s, 4 s window                     every 8 s of audio
-                                                   ▼                                  ▼
-                                      wav2vec2 deepfake model             faster-whisper (speech-to-text)
-                                      → calibrated AI-voice %                     → rule engine + local LLM
-                                                   │                                  │
-                                                   └────────────┬─────────────────────┘
-                                                                ▼
-                               number intelligence ──► fusion → JSON report ──► FastAPI ──WebSocket──► dashboard
+```text
+┌──────────────────────────┐  HTTP + WebSocket  ┌───────────────────────────┐   runs on the Mac   ┌─────────────────────┐
+│ FRONTEND · React + Vite  │ ─────────────────► │ BACKEND · FastAPI         │ ──────────────────► │ adb, scrcpy,        │
+│ veracity-frontend/       │ ◄───────────────── │ veracity-backend/         │ ◄────────────────── │ BlackHole, models,  │
+│ http://localhost:5173    │        JSON        │ http://localhost:8000     │                     │ Ollama, SQLite      │
+└──────────────────────────┘                    └───────────────────────────┘                     └─────────────────────┘
 ```
 
-**Why a USB cable?** Android doesn't let normal apps record phone calls. `scrcpy` runs its capture code on the phone through `adb` (Android's developer USB connection), and since v3.2 it can capture the caller's side of a call (`voice-call-downlink`). Whether this works depends on the phone model, so **test your phone first** ([§4](#4-connecting-a-real-phone)).
+- **The frontend only draws screens.** It shows what the backend decided and never works out a verdict itself.
+- **The backend does all the real work.** It runs the tools and models on the Mac and pushes results over one WebSocket per call.
 
 ### The four dashboard steps
 
-| Step | Screen | Backend |
-|---|---|---|
-| 1 · Check setup | Is the backend up? Is a phone connected? scrcpy, audio input, models? | `GET /api/health` |
-| 2 · Check number | Facts and risk about the caller's number | `POST /api/number/check` |
-| 3 · Live call | Voice %, transcript, red flags, alert banner | `POST /api/session/start`, `WS /ws/live/{id}` *(planned)* |
-| 4 · Report | Risk level, reasons, evidence, Download JSON, 1930 / Chakshu links | `POST /api/session/{id}/stop` *(planned)* |
+| Step | What the user sees | Backend |
+| --- | --- | --- |
+| 1 · Check setup | Phone, scrcpy, audio input and models: green or red, with the command that fixes each problem | `GET /api/health` |
+| 2 · Check number | Facts about the caller's number and its rule score; filled in automatically when the phone rings | `GET /api/call/state`, `POST /api/number/check` |
+| 3 · Live call | Input level, AI-voice % and its timeline, transcript with highlighted evidence, red flags, script score, one alert banner | `POST /api/session/start`, `WS /ws/live/{id}`, `POST /api/session/{id}/stop` |
+| 4 · Report | Risk level and how the score was built, what to do now (1930 / cybercrime.gov.in / Chakshu), evidence, Download JSON, community report | `GET /api/report/{id}`, `POST /api/number/report` |
 
 ---
 
@@ -108,434 +108,441 @@ Caller phone ──call──► Victim's Android phone ──USB (adb)──►
 ### Prerequisites
 
 | Tool | Version | Why |
-|---|---|---|
-| [Git](https://git-scm.com/downloads) | any | clone the repo |
-| [Python](https://www.python.org/downloads/) | **3.12 recommended** (3.11 also fine) | backend. The ML libraries (torch, faster-whisper) are not reliable on 3.13 yet. |
-| [Node.js](https://nodejs.org/) | 20.19+ (includes `npm`) | frontend |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | optional | run everything without installing Python/Node |
+| --- | --- | --- |
+| macOS on Apple Silicon | recommended | The live pipeline (BlackHole, Metal for the voice model) is built and tested on a Mac. |
+| [Python](https://www.python.org/downloads/) | 3.12 or 3.13 | Backend. Tested on 3.13. |
+| [Node.js](https://nodejs.org/) | 20.19+ | Frontend. |
+| [Ollama](https://ollama.com/) | any recent | Optional local LLM. Without it the scam rules still work. |
+| About 9 GB of free disk | | Models: voice ≈ 1.3 GB, Whisper ≈ 1.6 GB, Llama 3.1 8B ≈ 4.9 GB. |
 
-On Windows, tick **"Add Python to PATH"** when installing Python.
-
-### Clone
+### 1. Clone
 
 ```bash
 git clone https://github.com/YADUNANDAN-SINGH/Veracity.git
 cd Veracity
 ```
 
-### Option A — run locally (recommended, and required for a real phone)
+### 2. Backend
 
-You need **two terminals**: one for the backend and one for the frontend.
-
-**Terminal 1 — backend**
-
-macOS / Linux:
 ```bash
 cd veracity-backend
-python3.12 -m venv venv           # first time only
+python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt   # first time, or when requirements.txt changes
+pip install -r requirements.txt -r requirements-ml.txt
+```
+
+Download the models once. After this, everything works with Wi-Fi off:
+
+```bash
+# AI-voice model (≈ 1.3 GB)
+hf download Gustking/wav2vec2-large-xlsr-deepfake-audio-classification
+
+# Speech-to-text (≈ 1.6 GB)
+python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')"
+
+# Local LLM (≈ 4.9 GB, optional)
+ollama pull llama3.1:8b
+```
+
+> If `hf` isn't found, your `huggingface_hub` is older: use `huggingface-cli download …` instead.
+
+Start the server:
+
+```bash
 uvicorn main:app --reload --port 8000
 ```
 
-Windows (PowerShell):
-```powershell
-cd veracity-backend
-py -3.12 -m venv venv             # first time only
-venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-> If PowerShell says running scripts is disabled, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once. In Command Prompt use `venv\Scripts\activate.bat` instead.
+- http://localhost:8000/docs has interactive docs for every endpoint.
+- The voice model and Whisper load in the background at start-up (a few seconds), so the first call is scored at once.
 
-Check that it works:
-- http://localhost:8000 → `{"message": "Backend is ready!"}`
-- http://localhost:8000/docs → interactive API docs, where you can try every endpoint
-- `--reload` restarts the server automatically when you save a Python file.
+### 3. Frontend
 
-**Terminal 2 — frontend**
+In a second terminal:
 
 ```bash
 cd veracity-frontend/veracity
-npm install        # first time, or when package.json changes
+npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**. Vite forwards every `/api/...` and `/ws/...` request to the backend on port 8000, so there's nothing to configure.
+Open **http://localhost:5173**. Vite forwards `/api/...` and `/ws/...` to the backend on port 8000, so there's nothing to configure.
 
-Stop either server with `Ctrl + C`.
+### Without a phone
 
-### Option B — simulation mode (no phone needed)
+- **Browser demo:** if the backend has no session API (an older backend, or the frontend running alone), Step 3 plays a scripted "digital arrest" call in the browser, clearly marked *Demo call*, and builds a demo report from it. Good for UI work.
+- **Test a live session without a call:** set the Mac's sound output to BlackHole and play speech into it (for example `say -a "BlackHole 2ch" "You are under digital arrest"`). The backend treats it exactly like call audio.
 
-Start the backend with `VERA_FAKE=1`:
-
-```bash
-VERA_FAKE=1 uvicorn main:app --reload --port 8000          # macOS / Linux
-$env:VERA_FAKE="1"; uvicorn main:app --reload --port 8000  # Windows PowerShell
-```
-
-The dashboard shows **SIMULATION MODE** and lets you continue past Step 1 without a phone. Today that's all it does. Scripted fake calls are on the to-do list. Use this mode for frontend and rules work.
-
-### Option C — Docker
-
-From the repo root:
+### Docker (UI work only)
 
 ```bash
-docker compose up --build                                       # prod-style: http://localhost:5173
+docker compose up --build                                       # http://localhost:5173
 docker compose --profile dev up --build backend frontend-dev    # hot reload: http://localhost:5174
-docker compose down                                             # stop
 ```
 
-> ⚠️ **A backend running in Docker can never see your phone.** Docker on a Mac has no USB access, and the container has no adb, scrcpy or audio devices. Step 1 will always show "adb wasn't found". Use Docker only for UI work or simulation mode.
->
-> If you want the Docker frontend with a **local** backend (real phone), run the backend as in Option A with `--host 0.0.0.0`, then:
-> ```bash
-> BACKEND_URL=http://host.docker.internal:8000 docker compose up -d --no-deps frontend
-> ```
-
-Only one backend (port 8000) and one frontend (port 5173) can run at a time. Stop Docker (`docker compose stop`) before running locally, and the other way round.
+> ⚠️ **A backend in Docker can never see your phone or BlackHole.** Docker on a Mac has no USB or audio access. To use the Docker frontend with a local backend, start the backend with `--host 0.0.0.0` and run `BACKEND_URL=http://host.docker.internal:8000 docker compose up -d --no-deps frontend`.
 
 ---
 
 ## 4. Connecting a real phone
 
-Only the person running the live demo needs this. Everyone else can use simulation mode.
-
-### 4.1 Install the tools (macOS)
+### 4.1 Install the tools
 
 ```bash
 brew install --cask android-platform-tools   # adb
-brew install scrcpy                          # needs version 3.2 or newer
+brew install scrcpy                          # 3.2 or newer
 brew install blackhole-2ch                   # virtual audio cable; restart the Mac if it doesn't appear
 ```
 
-### 4.2 Turn on USB debugging (on the phone)
+### 4.2 Turn on USB debugging
 
-1. **Settings → About phone** → tap **Build number** 7 times. On Xiaomi this is *MIUI version*; on Samsung it's under *Software information*.
-2. **Developer options** → turn on **USB debugging**. On Xiaomi, also turn on *USB debugging (Security settings)*.
-3. Plug the phone into the Mac with a **data** cable (some cables only charge).
-4. Set the USB mode to **File transfer** in the notification shade.
-5. Accept **"Allow USB debugging?"**, tick *Always allow*.
+1. **Settings → About phone** → tap **Build number** 7 times (Xiaomi: *MIUI version*; Samsung: under *Software information*).
+2. **Developer options** → turn on **USB debugging** (Xiaomi: also *USB debugging (Security settings)*).
+3. Plug in with a **data** cable, set USB mode to **File transfer**, and accept **"Allow USB debugging?"**.
 
-Check it:
 ```bash
 adb devices
-# List of devices attached
-# EIPNLJZXM7GIVKXG	device      ← "device" = good; "unauthorized" = accept the prompt on the phone
+# EIPNLJZXM7GIVKXG	device      ← "device" is good; "unauthorized" means accept the prompt on the phone
 ```
 
-### 4.3 How the dashboard knows the phone is connected
+### 4.3 Route the call audio into BlackHole
 
-When Step 1 loads, or you click **Check again**:
+scrcpy plays the caller through the Mac's **current sound output**. It can't be pointed at BlackHole directly, so the output must include BlackHole:
 
-1. The frontend calls `GET /api/health` (`src/api/health.js`).
-2. The backend (`app/routes/health.py`):
-   - uses `shutil.which("adb")` to check that `adb` is installed;
-   - uses `subprocess` to run `adb devices`, and counts the lines that end in `\tdevice` (ignoring `unauthorized` and `offline`);
-   - does the same for `scrcpy --version`.
-3. It returns `{"adb_found": true, "adb_devices": 1, ...}`.
-4. `buildChecks()` in `src/api/health.js` turns that into green or red rows.
+1. Open **Audio MIDI Setup** → **+** → **Create Multi-Output Device**.
+2. Tick your speakers or headphones **first**, then **BlackHole 2ch**. Turn on **Drift Correction** for BlackHole only.
+3. Right-click the device → **Use This Device For Sound Output**.
+4. Restart the backend, which reads BlackHole's settings when it starts.
 
-**So "phone connected" means exactly this: `adb devices`, run on the machine where the backend runs, lists the phone as `device`.** If the dashboard disagrees with you, run `adb devices` yourself. The dashboard can't know more than that command.
+> macOS asks the terminal running `uvicorn` for **Microphone** permission the first time. Allow it, or BlackHole records silence.
+
+If nothing reaches BlackHole for 6 seconds, Step 3 shows a **"No call audio"** banner naming the output the Mac is actually using.
 
 ### 4.4 The critical test: does this phone give you call audio?
 
-Call the phone from another phone, answer, and run this during the call:
+Call the phone from another phone, answer, and during the call run:
 
 ```bash
 scrcpy --no-video --no-playback --require-audio --audio-source=voice-call-downlink \
   --audio-codec=aac --record=downlink_test.m4a --time-limit=20
 ```
 
-Then play `downlink_test.m4a`:
-- **You hear the caller clearly:** this phone works.
-- **Silence:** retry with `--audio-source=voice-call`. If it's still silent, try another phone. Results differ by manufacturer.
-- **No phone works:** use the fallback of the phone on speaker and the laptop microphone.
+- **You hear the caller in `downlink_test.m4a`:** this phone works.
+- **Silence:** retry with `--audio-source=voice-call` and run the backend with `VERA_AUDIO_SOURCE=voice-call`.
+- **Still silent:** use another phone, or the fallback of the phone on speaker into the laptop mic: `VERA_AUDIO_DEVICE="MacBook Air Microphone" VERA_CAPTURE_METHOD=laptop_mic_speakerphone`.
 
-### 4.5 Route the audio into Python
+### 4.5 A monitored call
 
-1. Open **Audio MIDI Setup** → **+** → **Create Multi-Output Device**.
-2. Tick **the built-in speakers** (keep them first) and **BlackHole 2ch**. Enable **Drift Correction** on BlackHole and set the device to **48 kHz**.
-3. Right-click the device → **Use This Device For Sound Output**.
-4. During a call:
-   ```bash
-   scrcpy --no-video --no-control --audio-source=voice-call-downlink --audio-codec=aac --audio-buffer=200
-   ```
-   You hear the caller on the speakers, and the same sound goes into BlackHole for Python to read.
+1. Step 1: all checks green. Optionally turn on **Save audio**.
+2. Step 2: the number fills in when the phone rings (or type it); check it.
+3. Step 3: the backend starts scrcpy itself (unless one is already running) and starts listening.
+4. **End call & build report** → Step 4.
 
 ---
 
-## 5. Codebase tour
+## 5. Configuration
 
-```
+All settings are environment variables read by the backend. Every one is optional.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `VERA_AUDIO_DEVICE` | `BlackHole 2ch` | Input device Python records from. |
+| `VERA_AUDIO_SOURCE` | `voice-call-downlink` | scrcpy audio source; `voice-call` mixes both sides. |
+| `VERA_CAPTURE_METHOD` | `scrcpy_<source>` | Written to the report; anything not starting with `scrcpy` stops the backend from launching scrcpy. |
+| `VERA_VOICE_MODEL` | `Gustking/wav2vec2-large-xlsr-deepfake-audio-classification` | Hugging Face audio-classification model for the AI-voice score. |
+| `VERA_VOICE_T` | `1.0` | Calibration temperature: p = sigmoid(logit(p_raw) / T). |
+| `VERA_T_AI` | `0.75` | Window score that counts towards **Likely AI** (3 windows in a row). |
+| `VERA_T_UNCERTAIN` | `0.40` | Smoothed score for **Uncertain**. |
+| `VERA_WHISPER_MODEL` | `large-v3-turbo` | Whisper size; use `small` on a slower Mac. |
+| `VERA_WHISPER_THREADS` | up to 8 | CPU threads for Whisper. |
+| `VERA_LANGUAGE` | `hi` | Transcription language: `hi`, `en`, or `auto` to detect it per chunk. |
+| `VERA_LLM_MODEL` | `llama3.1:8b` | Ollama model for the second scam-script layer. |
+| `OLLAMA_HOST` | `http://localhost:11434` | Where Ollama runs. |
+| `VERA_DB` | `app/data/veracity.db` | SQLite file for community reports and saved reports. |
+| `VERA_FAKE` | unset | `1` lets Step 1 continue without a phone. |
+
+Example: `VERA_LANGUAGE=en VERA_WHISPER_MODEL=small uvicorn main:app --reload --port 8000`
+
+---
+
+## 6. Codebase tour
+
+```text
 Veracity/
-├── README.md                    ← you are here
-├── CODEBASE_GUIDE.md            deeper, file-by-file walkthrough with request flows
-├── docker-compose.yml           backend + frontend containers (+ a hot-reload "dev" profile)
-├── Claude outputs/
-│   └── Veracity_Design_System.pdf   visual design spec for every screen
+├── README.md
+├── CODEBASE_GUIDE.md              older file-by-file walkthrough (Steps 1–2)
+├── docker-compose.yml
+├── Claude outputs/Veracity_Design_System.pdf
 │
-├── veracity-backend/            ── Python · FastAPI ──
-│   ├── main.py                  creates the app, adds CORS, registers the routers
-│   ├── requirements.txt         fastapi, uvicorn[standard], phonenumbers
-│   ├── Dockerfile               Python 3.12 image (simulation / UI work only)
+├── veracity-backend/              ── Python · FastAPI ──
+│   ├── main.py                    app, CORS, routers; loads the models in the background
+│   ├── requirements.txt           web + number + audio input
+│   ├── requirements-ml.txt        torch, transformers, faster-whisper, scipy, ollama
+│   ├── tests/test_report.py
 │   └── app/
-│       ├── routes/              web layer: one file per group of URLs
-│       │   ├── health.py        GET  /api/health          (Step 1)
-│       │   └── number.py        POST /api/number/check    (Step 2)
-│       ├── feature/             logic layer: plain Python, no web code
-│       │   └── number_intelligence.py   phone-number facts via libphonenumber
-│       └── data/                (empty) for SQLite community reports, calibration files
+│       ├── routes/                web layer: one file per group of URLs
+│       │   ├── health.py          GET  /api/health
+│       │   ├── call.py            GET  /api/call/state
+│       │   ├── number.py          POST /api/number/check, POST /api/number/report
+│       │   ├── session.py         POST /api/session/start · /stop, WS /ws/live/{id}
+│       │   └── report.py          GET  /api/report/{id}
+│       ├── feature/               logic layer: plain Python, no web code
+│       │   ├── call_state.py      ringing / in-call / caller number over adb
+│       │   ├── number_intelligence.py   libphonenumber facts, India series, rule score
+│       │   ├── audio_capture.py   BlackHole capture, resampling, starts/stops scrcpy
+│       │   ├── voice.py           deepfake model, calibration, verdict smoother
+│       │   ├── transcriber.py     faster-whisper, tuned for Hindi phone audio
+│       │   ├── scam_rules.py      11 categories, Whisper-tolerant Hindi matching, script score
+│       │   ├── scam_llm.py        Ollama structured output, quote checking
+│       │   ├── session.py         one live call: audio, transcriber and LLM threads → events
+│       │   ├── report.py          Pydantic report schema + fusion
+│       │   └── reports_db.py      SQLite: community reports, saved reports
+│       └── data/                  (git-ignored) veracity.db, audio/ recordings
 │
-└── veracity-frontend/veracity/  ── React 19 · Vite 8 ──
-    ├── vite.config.js           dev server :5173, proxies /api and /ws to :8000
-    ├── nginx.conf.template      the same proxy for the Docker image
-    ├── Dockerfile               stages: deps → dev | build → prod (nginx)
+└── veracity-frontend/veracity/    ── React 19 · Vite 8 ──
+    ├── vite.config.js             dev server :5173, proxies /api and /ws to :8000
     └── src/
-        ├── main.jsx             starts React, loads local fonts + global CSS
-        ├── App.jsx              current step (1–4) and state shared between steps
-        ├── api/                 talks to the backend (no React here)
-        │   ├── client.js        fetch wrapper: timeouts, ApiError, wsUrl()
-        │   ├── health.js        fetchHealth() + buildChecks() + FIX_COMMANDS
-        │   └── number.js        checkNumber() + buildNumberRows()
-        ├── hooks/               React state glue (loading / error / data)
-        │   ├── useHealth.js     runs the health check, "Check again"
-        │   └── useNumberCheck.js
-        ├── pages/               one folder per screen
-        │   ├── SetupPage/       Step 1
-        │   └── NumberPage/      Step 2
+        ├── App.jsx                current step and state shared between steps
+        ├── api/                   talks to the backend (no React here)
+        │   ├── client.js          fetch wrapper: timeouts, ApiError, wsUrl()
+        │   ├── health.js · number.js · call.js
+        │   ├── session.js         start / stop / live socket; documents every event
+        │   ├── report.js          reporting links, scam types, community report, download
+        │   └── demoCall.js        the scripted browser demo
+        ├── hooks/                 useHealth, useNumberCheck, useCallState, useLiveSession, useTheme
+        ├── pages/                 SetupPage, NumberPage, LivePage, ReportPage
         ├── components/
-        │   ├── layout/          AppHeader, FlowSteps
-        │   ├── setup/           SetupStep (one row of the system check)
-        │   └── ui/              Button, Panel, AlertBanner, Toggle, Icon, Logo, CallStatus
-        ├── constants/steps.js   the four steps
-        └── styles/
-            ├── tokens.css       every colour, size and spacing value
-            └── base.css         resets + type scale (t-display, t-label, t-code…)
+        │   ├── layout/            AppHeader (steps, call timer, theme toggle), FlowSteps
+        │   ├── live/              LevelMeter, ScoreMeter, VoiceTimeline, Transcript, RedFlagList
+        │   ├── report/            RiskSummary, CommunityReport, ReportJson
+        │   └── ui/                Button, Panel, AlertBanner, Badge, Toggle, Icon, CallStatus…
+        ├── constants/             steps, scam categories in words
+        └── styles/                tokens.css (every colour, light + dark), base.css
 ```
 
-### Why it's split this way
+**Backend layers.** `routes/` holds web code only: it validates the request with Pydantic, calls a feature and turns errors into HTTP codes. `feature/` holds pure logic you can test or reuse without a server.
 
-**Backend: `routes/` vs `feature/`**
-- `routes/` holds **web code only**. It reads the request (validated by Pydantic models), calls a feature, and turns errors into HTTP codes.
-- `feature/` holds **pure logic** with no FastAPI imports. You can test it, or reuse it in the final report, without a server.
+**Frontend layers.** `api/` (URLs and JSON shapes) → `hooks/` (loading and error state) → `pages/` (one screen) → `components/` (how one piece looks). If the backend renames a field, only `api/` changes.
 
-**Frontend: four layers**
+### One live call, end to end
 
-| Layer | Job | Must not |
-|---|---|---|
-| `api/` | URLs, JSON shapes, turning JSON into display rows | import React |
-| `hooks/` | loading / error / data state, cancelling stale requests | know URLs or layout |
-| `pages/` | one full screen: what to show, when "Continue" is enabled | call `fetch` directly |
-| `components/` | how one piece looks | know where data comes from |
-
-If the backend renames a field, you only edit `api/`. If the design changes, you only edit `components/` and `styles/`.
-
-**Why a proxy?** The frontend only uses relative URLs (`/api/health`). In development Vite forwards them to the backend, and in Docker nginx does. So the backend address is never hard-coded, and there are no CORS problems.
-
-### Request flow example: Step 2
-
+```text
+LivePage mounts → useLiveSession.start()
+  POST /api/session/start ──► Session: starts scrcpy, opens BlackHole, starts 3 threads
+  WS   /ws/live/{id}      ◄── level 10×/s · voice 1×/s · transcript at each pause · flag · script · alert
+  "End call" → POST /api/session/{id}/stop
+                          ──► finishes the last chunk, stops scrcpy, analyse_number(),
+                              build_report(), saves it to SQLite, publishes report + ended
+  ReportPage ◄── the same report JSON
 ```
-NumberPage.jsx         user types "+91 98765 43210" → "Check number"
- └ useNumberCheck.js   loading = true, cancels any older request
-   └ api/number.js     POST /api/number/check {"number": "...", "region": "IN"}
-     └ (Vite proxy)    → localhost:8000
-       └ routes/number.py               Pydantic checks the body
-         └ feature/number_intelligence.py   phonenumbers: parse, valid?, type, country, carrier, time zone
-       ◄ JSON (or 422 if it isn't a phone number at all)
-   └ buildNumberRows()  → "Line type: Mobile", "Original carrier: Airtel", …
- └ NumberPage renders the rows; an invalid number gets a caution banner
-```
-
-For every file explained in detail, see **[CODEBASE_GUIDE.md](CODEBASE_GUIDE.md)**.
 
 ---
 
-## 6. API reference
+## 7. API reference
 
-Live, clickable docs: **http://localhost:8000/docs** (generated by FastAPI).
-
-### `GET /api/health` — built
-
-```json
-{
-  "status": "ok",
-  "fake_mode": false,
-  "port": 8000,
-  "adb_found": true,
-  "adb_devices": 1,
-  "scrcpy_found": true,
-  "scrcpy_version": "5.0.1",
-  "audio_device": null,
-  "audio_sample_rate": null,
-  "models": {
-    "voice":   { "id": "mo-thecreator/Deepfake-audio-detection", "ready": false },
-    "whisper": { "id": "small", "ready": false },
-    "llm":     { "id": "llama3.1:8b", "ready": false }
-  }
-}
-```
-`models.*.ready` is a placeholder until the TODO in `health.py` is done. `audio_device` is the input named by `VERA_AUDIO_DEVICE` (default `BlackHole 2ch`), or `null` if it isn't found. The frontend's "Continue" unlocks when every blocking check passes, or when `fake_mode` is `true`. A missing LLM is only a warning, because the rules still work without it.
-
-### `POST /api/number/check` — built
-
-Request:
-```json
-{ "number": "+91 98765 43210", "region": "IN" }
-```
-`region` is only used when the number has no `+country` code.
-
-Response `200`:
-```json
-{
-  "valid": true,
-  "number_type": "MOBILE",
-  "country": "India",
-  "location": "India",
-  "original_carrier": "Airtel",
-  "is_international": false,
-  "e164_format": "+919876543210",
-  "national_digits": "9876543210",
-  "timezones": ["Asia/Calcutta"]
-}
-```
-Response `422`: `{"detail": "That doesn't look like a phone number."}`
-
-`original_carrier` is the operator the number range was **first** issued to. The number may have been ported since.
-
-### `GET /api/call/state` — built
-
-Polled about once a second by Step 2. Reads `adb shell dumpsys telephony.registry` on the USB-connected phone.
-
-```json
-{ "connected": true, "state": "ringing", "number": "+919876543210" }
-```
-`state` is `idle`, `ringing` or `in_call`. `number` is `null` when there's no call, or when the phone hides it (common on Android 12+). Then the user types the number. When a number arrives, Step 2 fills it in and runs `POST /api/number/check` automatically.
-
-### Planned (from the project document)
+Interactive docs: **http://localhost:8000/docs**.
 
 | Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/number/report` | `{number, category, note}` → add a community report |
-| POST | `/api/session/start` | `{caller_number}` → `session_id`, starts capture + analysis |
-| POST | `/api/session/{id}/stop` | stops capture, returns and saves the JSON report |
-| GET | `/api/report/{id}` | the finished report |
-| WS | `/ws/live/{id}` | stream of live events (below) |
+| --- | --- | --- |
+| GET | `/api/health` | Backend, phone, scrcpy, audio device and model status |
+| GET | `/api/call/state` | `{connected, state: idle \| ringing \| in_call, number}` from the phone |
+| POST | `/api/number/check` | `{number, region}` → number facts, series, community reports, rule score and reasons |
+| POST | `/api/number/report` | `{number, category, note}` → saves a community report, returns new totals |
+| POST | `/api/session/start` | `{caller_number, save_audio}` → `{session_id}`; 503 if the audio input is missing |
+| POST | `/api/session/{id}/stop` | Ends the call; returns and saves the JSON report |
+| GET | `/api/report/{id}` | A saved report; `?download=1` sends it as a file |
+| WS | `/ws/live/{id}` | Live events; late joiners get the history replayed |
 
-Live WebSocket events:
+### `POST /api/number/check`
 
-| `type` | Fields | Dashboard reaction |
-|---|---|---|
-| `level` | `t, dbfs` | input level meter |
-| `voice` | `t, p_ai, smoothed, state, speech` | big %, state badge, chart point |
-| `transcript` | `t, text` | transcript line |
-| `flag` | `category, severity, evidence, t, source` | red-flag list |
-| `script` | `score` | script score meter |
-| `alert` | `kind, message` | red alert banner |
-| `report` | `report` | report screen |
-| `ended` | — | close the socket |
-
-> The project document calls the number endpoint `/api/number/analyze`. The code uses `/api/number/check`. Keep `/check` unless the team agrees to rename it in both places.
-
----
-
-## 7. How to add a feature
-
-Follow the same pattern every time:
-
-**Backend**
-1. Put the logic in `app/feature/<name>.py`, as plain functions with no FastAPI imports.
-2. Put the URL in `app/routes/<name>.py`: an `APIRouter`, Pydantic request and response models, and errors raised as `HTTPException`.
-3. Register it in `main.py` with `app.include_router(<name>.router)`.
-4. Add any new package to `requirements.txt`.
-
-**Frontend**
-1. Add `src/api/<name>.js`: the call (through `apiRequest`), the JSON shape documented in a comment at the top, and a pure `build…Rows()` helper if needed.
-2. Add `src/hooks/use<Name>.js` for loading / error / data state, using an `AbortController` like the existing hooks.
-3. Build the screen in `src/pages/<Name>Page/` from components in `src/components/`.
-4. Take every colour and size from `src/styles/tokens.css`. Never hard-code a hex value.
-
-**Where the planned features go**
-
-| Feature | Backend | Frontend |
-|---|---|---|
-| Model checks | `routes/health.py` (the TODO) | nothing, already handled |
-| Simulation events | `feature/fakes.py` (when `VERA_FAKE=1`) | — |
-| Rule score, 1600/140 series, community reports | `feature/number_intelligence.py`, `feature/reports_db.py` (SQLite in `app/data/`) | `api/number.js` → `buildNumberRows` |
-| Number ML % | `feature/number_model.py` | number card |
-| Audio capture | `feature/audio_sources.py` | — |
-| AI-voice score | `feature/voice.py` | `components/live/ScoreMeter`, `ScoreTimeline` |
-| Transcription + scam rules + LLM | `feature/transcriber.py`, `scam_rules.py`, `scam_llm.py` | `components/live/Transcript`, `RedFlag` |
-| Live session + WebSocket | `routes/session.py` | `api/session.js`, `hooks/useLiveSession.js`, `pages/LivePage/` |
-| Report + fusion | `feature/report.py` | `pages/ReportPage/` |
-
-### Git workflow
-
-```bash
-git checkout -b feature/scam-rules     # one branch per feature
-# ...work, commit...
-git push -u origin feature/scam-rules  # then open a pull request into main
+```json
+{ "number": "+855 12345678" }
+```
+```json
+{
+  "valid": true, "number_type": "MOBILE", "country": "Cambodia", "location": "Cambodia",
+  "original_carrier": "Cellcard", "is_international": true, "e164_format": "+85512345678",
+  "national_digits": "12345678", "timezones": ["Asia/Phnom_Penh"],
+  "series": "international", "community_reports": 0, "reports_7d": 0,
+  "rule_score": 25, "rule_reasons": ["International number (+25)"]
+}
 ```
 
+**Rule score** (shown to the user, clamped to 0–100):
+
+| Signal | Points |
+| --- | --- |
+| Invalid or unparseable number | +40 |
+| International number | +25 |
+| Community reports | +10 × log2(1 + reports), at most +30 |
+| Reported in the last 7 days | +10 |
+| 140 telemarketing series | +5 |
+| 1600 series (regulated banks and agencies) | −20 |
+
+`original_carrier` is the operator the number range was **first** issued to; the number may have been ported since.
+
+### WebSocket events
+
+| `type` | Fields | Dashboard |
+| --- | --- | --- |
+| `level` | `t, dbfs` | input meter and waveform |
+| `voice` | `t, p_ai, smoothed, state, speech` | AI-voice %, state badge, timeline colour |
+| `transcript` | `t, text` | transcript line |
+| `flag` | `category, severity, evidence, t, source` (`rule` or `llm`) | red-flag list, highlighted words |
+| `script` | `score` | script score |
+| `alert` | `kind` (`voice`, `script`, `audio`), `message` | the one banner |
+| `report` | `report` | Step 4 |
+| `ended` | — | closes the socket |
+
+`t` is seconds since the call started. `state` is `LIKELY_HUMAN`, `UNCERTAIN` or `LIKELY_AI`.
+
 ---
 
-## 8. Rules we follow
+## 8. The evidence report
 
-These come from the project document and the design system. Please keep them.
+Built by `app/feature/report.py` when the call ends, saved in SQLite, and downloadable from Step 4.
 
-**Product honesty**
-- **No external APIs at runtime.** Models are downloaded once, and then everything works with Wi-Fi off.
-- **Privacy by default.** Audio is processed in memory and only saved if the user turns it on. Then the report stores its SHA-256.
-- **Never quote numbers we didn't measure.** That includes the voice model card's "98.82% accuracy". Measure our own accuracy on our own recordings.
-- The AI-voice % is *"a calibrated model estimate, not proof"*. Say "Likely AI", never "Confirmed fake".
-- The number ML model is trained on **synthetic data**. Always label it so.
+```json
+{
+  "schema_version": "1.0",
+  "report_id": "1e9928a6…",
+  "generated_at": "2026-10-31T01:18:36Z",
+  "call":   { "caller_number": "+85512345678", "duration_s": 34.0,
+              "capture_method": "scrcpy_voice_call_downlink", "audio_device": "BlackHole 2ch" },
+  "number": { "e164": "+85512345678", "series": "international", "community_reports": 0,
+              "rule_score": 25, "reasons": ["International number (+25)"] },
+  "voice":  { "model_id": "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification",
+              "calibration_t": 1.0, "threshold": 0.75,
+              "windows": [{ "t_start": 0.0, "t_end": 4.0, "p_ai": 0.91 }],
+              "max_p_ai": 0.91, "mean_p_ai": 0.88, "final_state": "LIKELY_AI" },
+  "script": { "script_score": 100, "scam_type": "digital_arrest",
+              "red_flags": [{ "category": "THREAT_ARREST", "severity": 3,
+                              "evidence": "digital arrest", "t": 6.0, "source": "rule" }],
+              "transcript_excerpt": "…" },
+  "overall":  { "risk_level": "HIGH", "score": 100,
+                "top_reasons": ["Voice sounded synthetic (peak 91%)",
+                                "Scam-script red flags (score 100)",
+                                "Number: International number (+25)"] },
+  "evidence": { "audio_saved": false, "audio_sha256": null },
+  "next_steps": ["Lost money? Call 1930 now and file a complaint at https://cybercrime.gov.in. …",
+                 "No money lost? Report the number on Chakshu … within 30 days of the call."],
+  "disclaimer": "This report is evidence, not proof. …"
+}
+```
 
-**UI**
-- Use calm, plain language. Second person, sentence case, no emoji, no exclamation marks.
-- **Never use colour alone.** Every status pairs a colour with a shape and a word.
-- **One primary button per screen**, and **at most one banner per screen**.
-- Anything the user may read back exactly (phone numbers, %, times, JSON) is set in the mono font (`t-code`).
-- Show the backend's voice `state`. Never work it out in the browser.
+**Fusion:** `overall = round(0.25 × number + 0.40 × voice peak + 0.35 × script)`. A voice peak ≥ 85 or a script score ≥ 80 is enough on its own. **HIGH ≥ 70**, **MEDIUM ≥ 40**, otherwise LOW. Step 4 shows this calculation, so nobody has to trust a bare number.
 
-**Code**
-- Logic goes in `feature/`, URLs in `routes/`. In the frontend: `api/` → `hooks/` → `pages/` → `components/`.
-- Write short comments that explain *why*, matching the existing files.
-- Run `npm run lint` in the frontend before pushing.
+**Script score:** 8 × the sum of the severities of distinct categories, +20 for authority + payment (digital arrest), +20 for family emergency + payment (voice clone), +10 for an OTP or PIN request; at most 100.
+
+**Privacy:** audio is processed in memory. With **Save audio** on, the call is written to `app/data/audio/<id>.wav` and the report stores its SHA-256, so anyone can check the file was not changed.
 
 ---
 
-## 9. Troubleshooting
+## 9. Measured results
+
+All numbers below were measured by us on 31 October 2026, on an M-series MacBook. **They use simulated phone audio**: real human speech (LibriSpeech) and synthetic speech (macOS voices), passed through a 300–3400 Hz filter, μ-law at 8 kHz and AAC. Real calls differ, so treat these as a starting point, not accuracy claims.
+
+### Choosing the AI-voice model
+
+Share of 4-second windows scored ≥ 0.75 (the "AI" threshold), on phone-channel audio:
+
+| Model | Real human voices (want low) | Synthetic voices (want high) |
+| --- | --- | --- |
+| mo-thecreator/Deepfake-audio-detection (first choice) | 26% | 100% |
+| garystafford/wav2vec2-deepfake-voice-detector | 21% | 100% |
+| Hemgg/Deepfake-audio-detection | 31% | 93% |
+| MelodyMachine/Deepfake-audio-detection-V2 | 0% | 58% |
+| **Gustking/wav2vec2-large-xlsr-deepfake-audio-classification (used)** | **1%** | **100%** |
+
+Scoring takes 0.07 s per window on Apple Silicon (Metal). Through a full live session, 32 s of human speech stayed **Likely human** and the synthetic voice turned **Likely AI**.
+
+### Choosing the speech-to-text setup
+
+Hindi scam script, phone-channel audio, 8 s chunks:
+
+| Setup | Time per 8 s chunk | Characters wrong |
+| --- | --- | --- |
+| small, Whisper defaults (language auto-detect) | 6.8–9.8 s | 25–27%, with garbled chunks |
+| small, tuned settings | 2.5 s | 22% |
+| medium, tuned settings | 8.1 s (too slow to keep up) | 21% |
+| **large-v3-turbo, tuned settings (used)** | **5.0 s** | **10%** |
+
+"Tuned settings" means Hindi fixed, temperature 0 with one small retry (no fallback to random decoding), no repeated 3-word phrases, and segments Whisper rates as non-speech dropped. On top of that, the rules fold together the letters Whisper confuses on phone audio (ट/त, ड/द, ष/श/स, long and short vowels), so "दिजिटल आरेष्ट" still matches "डिजिटल अरेस्ट". On the test script this took the rules from 0 to 7 red flags, with no flags on everyday sentences.
+
+---
+
+## 10. Testing
+
+```bash
+cd veracity-backend
+pip install pytest httpx      # first time
+python -m pytest              # 13 tests
+
+cd ../veracity-frontend/veracity
+npm run lint
+npm run build
+```
+
+The tests cover the number rule score against the project document's table, fusion and its overrides, the report schema, and the report and community-report endpoints, using a temporary database.
+
+---
+
+## 11. Troubleshooting
 
 | Problem | Fix |
-|---|---|
-| Step 1 says **"adb wasn't found"** / **"scrcpy wasn't found"** | The backend is running in Docker, or the tools aren't installed. Run the backend locally ([§3 Option A](#option-a--run-locally-recommended-and-required-for-a-real-phone)) and check `which adb scrcpy`. |
-| Step 1 says **"No phone found"** | Run `adb devices`. If it's empty, replug the cable, set USB mode to *File transfer*, turn USB debugging off and on again, or try another cable. If it says `unauthorized`, accept the prompt on the phone. |
-| **"Can't reach the backend"** | Start the backend on port 8000 and check http://localhost:8000. |
-| **`address already in use`** / **`ports are not available`** | Another copy is running, often Docker. Run `docker compose stop`, or find the process with `lsof -nP -iTCP:8000 -sTCP:LISTEN` (or `:5173`) and stop it. |
-| **`npm error Missing script: "dev"`** | You're in the wrong folder. Run npm inside `veracity-frontend/veracity`. |
-| **`uvicorn: command not found`** | The virtual environment isn't active. Run `source venv/bin/activate`. |
-| **`ModuleNotFoundError: phonenumbers`** | Run `pip install -r requirements.txt` inside the active venv. |
-| **502 Bad Gateway** from the Docker frontend | The backend it points at isn't running (yet). Wait a few seconds or start it. |
-| **BlackHole 2ch** isn't listed in Audio MIDI Setup | Restart the Mac after `brew install blackhole-2ch`. |
-| **`Cannot connect to the Docker daemon`** | Start Docker Desktop. |
-| torch / faster-whisper fail to install | Recreate the venv with Python 3.12: `rm -rf venv && python3.12 -m venv venv`. |
+| --- | --- |
+| **"No call audio"** banner, flat waveform | The Mac's sound output doesn't include BlackHole. Set up the Multi-Output Device ([§4.3](#43-route-the-call-audio-into-blackhole)). The banner names the output actually in use. |
+| Flat waveform even with the Multi-Output Device | The phone isn't sharing call audio: run the [critical test](#44-the-critical-test-does-this-phone-give-you-call-audio) and try `VERA_AUDIO_SOURCE=voice-call`. Also check the terminal has Microphone permission. |
+| **"Couldn't monitor this call"** | BlackHole isn't installed, or was installed after the backend started. Restart the backend. |
+| Real voice shown as **Likely AI** | The thresholds aren't calibrated for your phone yet. Record a few normal calls with Save audio on and calibrate `VERA_VOICE_T` / `VERA_T_AI` on them. |
+| Transcript in the wrong script or language | Set `VERA_LANGUAGE` (`hi`, `en`); `auto` guesses per chunk and can pick the wrong language on phone audio. |
+| Transcript lines lag behind the call | Use `VERA_WHISPER_MODEL=small`, or stop other heavy apps. |
+| No `local LLM` flags | Ollama isn't running or the model isn't pulled: `ollama pull llama3.1:8b`. The rules work without it. |
+| Step 1: **"No phone found"** | Run `adb devices`; replug, set USB mode to *File transfer*, or accept the debugging prompt. |
+| **"Can't reach the backend"** | Start `uvicorn` on port 8000. |
+| `address already in use` | Another copy (often Docker) is running: `docker compose stop` or `lsof -nP -iTCP:8000 -sTCP:LISTEN`. |
+| BlackHole missing in Audio MIDI Setup | Restart the Mac after `brew install blackhole-2ch`. |
 
 ---
 
-## 10. Limitations
+## 12. Limitations
 
-- **Spoofing:** Veracity checks the caller ID the network shows. It **cannot** reveal the real number behind a spoofed call or locate the caller. Only operators and police can, with legal process.
-- **Not proof:** the AI-voice % is a calibrated estimate meant to warn the user. It is not legal proof.
-- **Phone support varies:** whether call audio reaches scrcpy depends on the phone manufacturer.
-- **Needs a laptop and cable today:** a normal Android app can't capture call audio without system privileges.
+- **Not proof.** The AI-voice % is a model estimate meant to warn the user, not legal evidence. The report says so.
+- **Calibration.** The voice model and its thresholds were chosen on simulated phone audio. Real calls still produce some false "Likely AI" stretches until calibrated on recordings from the phone and network actually used.
+- **Transcription.** Whisper still makes mistakes on narrow-band Hindi and Hinglish. The rules only catch phrases on their list; keep adding real scam phrases from news reports.
+- **The local LLM can mislabel.** Its flags are only kept when their exact quote is in the transcript and it is confident, but it can still pick the wrong category.
+- **Spoofing.** Veracity checks the caller ID the network shows. It cannot reveal the real number behind a spoofed call or locate the caller.
+- **Phone support varies**, and a laptop and cable are needed today: a normal Android app can't capture call audio.
 
 ---
 
-## 11. Further reading
+## 13. Rules we follow
+
+**Product honesty**
+- No external APIs at runtime. Models are downloaded once, then everything works offline.
+- Privacy by default: audio stays in memory unless the user turns on Save audio.
+- Never quote accuracy we didn't measure ourselves.
+- Say "Likely AI", never "Confirmed fake".
+
+**UI**
+- Calm, plain language: second person, sentence case, no emoji, no exclamation marks.
+- Never colour alone: every status pairs a colour with an icon and a word.
+- One primary button and at most one banner per screen.
+- Numbers, percentages, times and JSON are set in the mono font.
+- Show the backend's verdict; never work it out in the browser.
+
+**Code**
+- Backend: logic in `feature/`, URLs in `routes/`. Frontend: `api/` → `hooks/` → `pages/` → `components/`.
+- Every colour comes from `src/styles/tokens.css` (light and dark).
+- Short comments that explain *why*.
+- Run the tests and `npm run lint` before pushing.
+
+---
+
+## 14. Further reading
 
 | Document | What's in it |
-|---|---|
-| [CODEBASE_GUIDE.md](CODEBASE_GUIDE.md) | Every file explained, request flows, how phone detection works |
+| --- | --- |
+| *Veracity Project Document v1.1* (shared by the team) | Full feature specs, thresholds, stack versions, pitch |
 | `Claude outputs/Veracity_Design_System.pdf` | Colours, type, every screen and component |
-| *Veracity Project Document v1.1* (shared by the team) | Full feature specs, thresholds, tech stack versions, pitch, team plan |
+| [CODEBASE_GUIDE.md](CODEBASE_GUIDE.md) | Detailed walkthrough of Steps 1–2 (written before Steps 3–4) |
 | [veracity-frontend/veracity/README.md](veracity-frontend/veracity/README.md) | Frontend-only notes |

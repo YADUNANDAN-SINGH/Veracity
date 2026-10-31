@@ -1,0 +1,58 @@
+.community-report {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.community-report__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.community-report__input {
+  width: 100%;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.community-report__input.t-code {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+textarea.community-report__input {
+  resize: vertical;
+}
+
+/* Native select with our own chevron (Design System §5 · Select) */
+.community-report__select {
+  position: relative;
+  display: block;
+}
+
+.community-report__select select {
+  appearance: none;
+  padding-right: var(--space-6);
+  cursor: pointer;
+}
+
+.community-report__chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  color: var(--ink-muted);
+  transform: translateY(-50%) rotate(90deg);
+  pointer-events: none;
+}
+
+.community-report__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
