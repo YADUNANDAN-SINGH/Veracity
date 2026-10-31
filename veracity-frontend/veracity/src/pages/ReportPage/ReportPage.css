@@ -1,0 +1,120 @@
+.report-page {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.report-page__intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.report-page__who {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* The number is read back exactly, so it is mono */
+.report-page__number {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.report-page__empty {
+  margin-bottom: var(--space-4);
+}
+
+.report-page__todo {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.report-page__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.report-page__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.report-page__col {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.report-page__voice {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.report-page__facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.report-page__facts div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.report-page__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-page__reasons {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--ink-muted);
+}
+
+.report-page__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+@media (max-width: 800px) {
+  .report-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .report-page {
+    padding-top: var(--space-5);
+  }
+  .report-page__intro,
+  .report-page__reasons {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--ink-muted);
+}
+
+.report-page__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

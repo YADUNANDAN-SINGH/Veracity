@@ -18,6 +18,11 @@
   border-top: 0;
 }
 
+/* No timestamp column, so the message gets the full width */
+.transcript__line--empty {
+  grid-template-columns: 1fr;
+}
+
 .transcript__line--waiting {
   font-style: italic;
 }

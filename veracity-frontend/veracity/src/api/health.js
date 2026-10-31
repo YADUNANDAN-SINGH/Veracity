@@ -13,8 +13,8 @@
  *   "audio_device": "BlackHole 2ch",    // null if not found
  *   "audio_sample_rate": 48000,
  *   "models": {
- *     "voice":   { "id": "mo-thecreator/Deepfake-audio-detection", "ready": true },
- *     "whisper": { "id": "small", "ready": true },
+ *     "voice":   { "id": "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification", "ready": true },
+ *     "whisper": { "id": "large-v3-turbo", "ready": true },
  *     "llm":     { "id": "llama3.1:8b", "ready": false }
  *   }
  * }
@@ -31,8 +31,8 @@ export const FIX_COMMANDS = {
   adb: 'brew install --cask android-platform-tools',
   scrcpy: 'brew install scrcpy',
   audio: 'brew install blackhole-2ch',
-  voice: "python -c \"from transformers import pipeline; pipeline('audio-classification', model='mo-thecreator/Deepfake-audio-detection')\"",
-  whisper: "python -c \"from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')\"",
+  voice: "python -c \"from transformers import pipeline; pipeline('audio-classification', model='Gustking/wav2vec2-large-xlsr-deepfake-audio-classification')\"",
+  whisper: "python -c \"from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')\"",
   llm: 'ollama pull llama3.1:8b',
   simulation: 'VERA_FAKE=1 uvicorn main:app --port 8000',
 }

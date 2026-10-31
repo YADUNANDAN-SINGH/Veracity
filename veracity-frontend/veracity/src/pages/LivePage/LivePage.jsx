@@ -36,8 +36,8 @@ export default function LivePage({ live, number, health, saveAudio, onBack, onCo
 
   // Arriving at this step is the "Start monitoring" moment
   useEffect(() => {
-    if (status === 'idle') start({ callerNumber, saveAudio })
-  }, [status, start, callerNumber, saveAudio])
+    if (status === 'idle') start({ callerNumber, saveAudio, number })
+  }, [status, start, callerNumber, saveAudio, number])
 
   const heard = live.series.some((point) => !point.gap)
 
@@ -50,7 +50,7 @@ export default function LivePage({ live, number, health, saveAudio, onBack, onCo
           <p className="t-code muted live-page__capture">{captureLine(live, health)}</p>
         </div>
         <div className="live-page__actions">
-          <PrimaryAction live={live} onBack={onBack} onContinue={onContinue} callerNumber={callerNumber} saveAudio={saveAudio} />
+          <PrimaryAction live={live} onBack={onBack} onContinue={onContinue} callerNumber={callerNumber} saveAudio={saveAudio} number={number} />
         </div>
       </header>
 
@@ -74,7 +74,7 @@ export default function LivePage({ live, number, health, saveAudio, onBack, onCo
               <VoiceTimeline levels={live.levels} series={live.series} live={status === 'live'} elapsed={live.elapsed} />
             </div>
           </Panel>
-          <Panel title="Transcript" action={<span className="t-body-sm muted">Caller’s side · every 8 s</span>} flush>
+          <Panel title="Transcript" action={<span className="t-body-sm muted">Caller’s side · at each pause</span>} flush>
             <Transcript lines={live.transcript} flags={live.flags} live={isLive} elapsed={live.elapsed} />
           </Panel>
           <Panel
@@ -91,7 +91,7 @@ export default function LivePage({ live, number, health, saveAudio, onBack, onCo
 }
 
 /** The one primary button: end the call while live, then go to the report. */
-function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio }) {
+function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, number }) {
   switch (live.status) {
     case 'idle':
     case 'starting':
@@ -124,7 +124,7 @@ function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio }) {
           <Button variant="ghost" onClick={onBack}>
             Back
           </Button>
-          <Button variant="primary" icon="refresh" onClick={() => live.start({ callerNumber, saveAudio })}>
+          <Button variant="primary" icon="refresh" onClick={() => live.start({ callerNumber, saveAudio, number })}>
             Try again
           </Button>
         </>
@@ -134,7 +134,16 @@ function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio }) {
 
 /** At most one banner: a live alert beats everything else. */
 function Banner({ live }) {
-  if (live.alert) {
+  // A setup problem, not a scam warning; it goes away once any sound arrives
+  if (live.alert?.kind === 'audio') {
+    if (live.status === 'live' && !live.levels.some((l) => l.dbfs > -100)) {
+      return (
+        <AlertBanner tone="caution" title="No call audio">
+          {live.alert.message}
+        </AlertBanner>
+      )
+    }
+  } else if (live.alert) {
     return (
       <AlertBanner tone="danger" title="Don’t share an OTP or send money.">
         {live.alert.message}

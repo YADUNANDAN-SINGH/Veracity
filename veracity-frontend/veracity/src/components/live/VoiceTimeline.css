@@ -35,7 +35,7 @@
 
 /* Track */
 .voice-timeline__track {
-  fill: #161d25;
+  fill: var(--track-deep);
 }
 .voice-timeline__centre {
   stroke: var(--track-line);
@@ -67,8 +67,7 @@
   fill: var(--live);
 }
 .voice-timeline__cursor {
-  stroke: #ffffff;
-  stroke-opacity: 0.55;
+  stroke: var(--track-cursor);
   stroke-width: 1;
   stroke-dasharray: 3 3;
 }
@@ -79,8 +78,8 @@
   margin: 0;
   padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
-  background: rgba(10, 14, 19, 0.85);
-  color: #ffffff;
+  background: var(--track-readout);
+  color: #ffffff; /* always on the dark track */
   font-size: 11px;
   line-height: 16px;
   white-space: nowrap;

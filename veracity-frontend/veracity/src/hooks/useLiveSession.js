@@ -94,7 +94,7 @@ export function useLiveSession() {
   const closeRef = useRef(null) // closes the socket, or the demo's stop()
   const activeRef = useRef(false) // guards double starts (StrictMode runs effects twice)
 
-  const start = useCallback(async ({ callerNumber, saveAudio }) => {
+  const start = useCallback(async ({ callerNumber, saveAudio, number }) => {
     if (activeRef.current) return
     activeRef.current = true
     dispatch({ type: 'start' })
@@ -112,7 +112,7 @@ export function useLiveSession() {
       dispatch({ type: 'started', sessionId: session_id, demo: false })
     } catch (error) {
       if (error.status === 404) {
-        const demo = startDemoCall({ callerNumber, onEvent })
+        const demo = startDemoCall({ callerNumber, number, onEvent })
         closeRef.current = demo.stop
         dispatch({ type: 'started', sessionId: 'demo', demo: true })
         return

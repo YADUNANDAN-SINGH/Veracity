@@ -32,7 +32,7 @@ export default function Transcript({ lines, flags, live, elapsed }) {
         </li>
       )}
       {!live && lines.length === 0 && (
-        <li className="transcript__line">
+        <li className="transcript__line transcript__line--empty">
           <span className="muted">No words were transcribed.</span>
         </li>
       )}
