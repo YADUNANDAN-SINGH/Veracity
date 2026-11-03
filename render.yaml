@@ -1,19 +1,26 @@
 # Render Blueprint for the hosted judge build (Render dashboard → New → Blueprint → this repo).
 # Render asks for the values marked sync: false when the Blueprint is created.
-# Free instances sleep after 15 minutes without traffic and take about a minute to wake;
-# use a paid instance (or the hackathon's Render credits) through judging so judges never wait.
+# A paid instance ($7/month, billed by the second) so judges never wait for a sleeping
+# service, with a 1 GB disk ($0.25/month) so held payments and reports survive restarts
+# and redeploys. Delete the service after judging to stop the bill.
 services:
   - type: web
     name: veracity
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
+    disk:
+      name: veracity-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: VERA_MODE
         value: judge
       - key: VERA_REGION
         value: US
+      - key: VERA_DB
+        value: /var/data/veracity.db
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET

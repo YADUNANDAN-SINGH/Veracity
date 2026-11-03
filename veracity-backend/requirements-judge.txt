@@ -1,8 +1,11 @@
 # The hosted judge build (Dockerfile at the repo root): replayed calls, the real
 # scam rules and the PayPal sandbox. No audio input and no models.
-fastapi
-uvicorn[standard]
-phonenumbers
-httpx
-numpy
-scipy
+# Pinned (Python 3.12, the Dockerfile's) so a new release can't break a rebuild during judging.
+fastapi==0.162.0
+starlette==1.10.0
+pydantic==2.14.2
+uvicorn[standard]==0.54.0
+phonenumbers==9.0.42
+httpx==0.28.1
+numpy==2.5.4
+scipy==1.18.1
