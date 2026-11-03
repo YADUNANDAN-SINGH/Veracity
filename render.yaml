@@ -1,0 +1,28 @@
+# Render Blueprint for the hosted judge build (Render dashboard → New → Blueprint → this repo).
+# Render asks for the values marked sync: false when the Blueprint is created.
+# Free instances sleep after 15 minutes without traffic and take about a minute to wake;
+# use a paid instance (or the hackathon's Render credits) through judging so judges never wait.
+services:
+  - type: web
+    name: veracity
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: VERA_MODE
+        value: judge
+      - key: VERA_REGION
+        value: US
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      # Webhook URL to register in the PayPal app: https://<your-service>.onrender.com/api/paypal/webhook
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      # A sandbox personal account judges can log in to PayPal with (shown on the dashboard)
+      - key: VERA_SANDBOX_BUYER_EMAIL
+        sync: false
+      - key: VERA_SANDBOX_BUYER_PASSWORD
+        sync: false

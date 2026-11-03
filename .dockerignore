@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+**/venv
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.env
+veracity-backend/app/data
+docs

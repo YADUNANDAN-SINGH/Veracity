@@ -1,0 +1,8 @@
+# The hosted judge build (Dockerfile at the repo root): replayed calls, the real
+# scam rules and the PayPal sandbox. No audio input and no models.
+fastapi
+uvicorn[standard]
+phonenumbers
+httpx
+numpy
+scipy
