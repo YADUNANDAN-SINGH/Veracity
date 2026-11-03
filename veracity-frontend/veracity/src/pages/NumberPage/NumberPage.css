@@ -36,6 +36,54 @@
   color: var(--brand);
 }
 
+/* Sample calls to replay (judge mode / VERA_FAKE=1) */
+.number-page__samples {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.number-page__samples li + li {
+  border-top: 1px solid var(--line);
+}
+
+.number-page__samples-empty {
+  padding: var(--space-4) var(--space-5);
+}
+
+.number-page__sample {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.number-page__sample:hover {
+  background: var(--surface-200);
+}
+
+.number-page__sample.is-selected {
+  border-left-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.number-page__sample-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.number-page__sample-meta {
+  font-size: 12px;
+}
+
 .number-page__form {
   display: grid;
   gap: var(--space-2);

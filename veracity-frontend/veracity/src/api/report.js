@@ -34,10 +34,11 @@ export const SCAM_TYPES = [
 export function guessScamType(report) {
   const categories = new Set((report?.script?.red_flags ?? []).map((f) => f.category))
   if (report?.script?.scam_type) return report.script.scam_type
+  // "Grandson in jail" calls mention jail and a lawyer too, so the family story decides first
+  if (categories.has('FAMILY_EMERGENCY')) return 'family_emergency'
   if (categories.has('THREAT_ARREST') || (categories.has('AUTHORITY_IMPERSONATION') && categories.has('PAYMENT_PRESSURE'))) {
     return 'digital_arrest'
   }
-  if (categories.has('FAMILY_EMERGENCY')) return 'family_emergency'
   if (categories.has('KYC_ACCOUNT_BLOCK') || categories.has('OTP_PIN_REQUEST')) return 'bank_kyc'
   if (categories.has('PARCEL_COURIER')) return 'parcel_courier'
   if (categories.has('PRIZE_LOTTERY')) return 'lottery_prize'

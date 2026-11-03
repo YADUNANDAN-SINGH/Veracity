@@ -1,10 +1,12 @@
 /*
  * Step 4 · Report (Design System §4).
  *
- * What to do first (1930, cybercrime.gov.in, Chakshu), then the score and how
- * it was built, the evidence (red flags, voice), the optional community report,
- * and the JSON itself. The report is the one POST /api/session/{id}/stop
- * returned in Step 3 (or the demo call's, while the backend has no sessions).
+ * What to do first (for India: 1930, cybercrime.gov.in, Chakshu; for the US:
+ * the FTC, IC3, the Elder Fraud Hotline), any payment still held from the call,
+ * then the score and how it was built, the evidence (red flags, voice), the
+ * optional community report, and the JSON itself. The report is the one
+ * POST /api/session/{id}/stop returned in Step 3 (or the demo call's, while the
+ * backend has no sessions).
  */
 import Panel from '../../components/ui/Panel'
 import Button from '../../components/ui/Button'
@@ -14,6 +16,7 @@ import RedFlagList from '../../components/live/RedFlagList'
 import RiskSummary from '../../components/report/RiskSummary'
 import CommunityReport from '../../components/report/CommunityReport'
 import ReportJson from '../../components/report/ReportJson'
+import PaymentGate from '../../components/payment/PaymentGate'
 import { REPORT_LINKS, downloadReport } from '../../api/report'
 import { describeCategory } from '../../constants/scamCategories'
 import './ReportPage.css'
@@ -27,11 +30,12 @@ const VOICE_STATES = {
 
 /**
  * @param {object}   props
- * @param {object}   props.report   the §1.7 JSON report, or null
- * @param {Function} props.onBack   back to Step 3
- * @param {Function} props.onNewCall  Step 2, for the next call
+ * @param {object}   props.report    the §1.7 JSON report, or null
+ * @param {object}   props.payments  usePayments() for this call: held payments are decided here
+ * @param {Function} props.onBack    back to Step 3
+ * @param {Function} props.onNewCall Step 2, for the next call
  */
-export default function ReportPage({ report, onBack, onNewCall }) {
+export default function ReportPage({ report, payments, onBack, onNewCall }) {
   if (!report) {
     return (
       <main className="report-page">
@@ -44,10 +48,12 @@ export default function ReportPage({ report, onBack, onNewCall }) {
   }
 
   const demo = report.call?.capture_method === 'demo_replay'
+  const replay = report.call?.capture_method?.startsWith('replay_')
   const flags = (report.script?.red_flags ?? []).map((flag) => ({
     ...flag,
     severity: flag.severity ?? describeCategory(flag.category).severity,
   }))
+  const callPayments = (payments?.payments ?? []).filter((p) => p.status !== 'CREATED')
 
   return (
     <main className="report-page">
@@ -72,25 +78,57 @@ export default function ReportPage({ report, onBack, onNewCall }) {
           Built from the scripted call in Step 3, not a real one. The backend will write this same JSON for real calls.
         </AlertBanner>
       )}
+      {replay && (
+        <AlertBanner tone="info" title="Report from a replayed call">
+          {report.call.capture_method === 'replay_recorded'
+            ? 'A real recording, replayed: the voice scores are the model’s own output on it, and the red flags came from the real rules as it played.'
+            : 'The transcript was scripted; the red flags came from the real rules as it played. There was no audio, so there is no voice score.'}
+        </AlertBanner>
+      )}
+
+      {callPayments.length > 0 && (
+        <div className="report-page__payments">
+          {callPayments.map((payment) => (
+            <PaymentGate
+              key={payment.payment_id}
+              payment={payment}
+              busy={payments.busy === payment.payment_id}
+              onVerify={(outcome) => payments.verify(payment.payment_id, outcome)}
+              onCancel={() => payments.cancel(payment.payment_id)}
+            />
+          ))}
+        </div>
+      )}
 
       <Panel title="What to do now">
         <div className="report-page__todo">
-          <p className="t-body-sm">
-            <strong>Lost money?</strong> Call 1930 now and file at cybercrime.gov.in. Attach the JSON file.
-          </p>
-          <p className="t-body-sm">
-            <strong>No money lost?</strong> Report the number on Chakshu within 30 days of the call.
-          </p>
+          {report.next_steps?.length ? (
+            report.next_steps.map((step) => (
+              <p key={step} className="t-body-sm">
+                <StepText text={step} />
+              </p>
+            ))
+          ) : (
+            <>
+              <p className="t-body-sm">
+                <strong>Lost money?</strong> Call 1930 now and file at cybercrime.gov.in. Attach the JSON file.
+              </p>
+              <p className="t-body-sm">
+                <strong>No money lost?</strong> Report the number on Chakshu within 30 days of the call.
+              </p>
+            </>
+          )}
           <div className="report-page__links">
-            <Button href={REPORT_LINKS.helpline} icon="phone">
-              Call 1930
-            </Button>
-            <Button href={REPORT_LINKS.cybercrime} iconRight="external-link">
-              cybercrime.gov.in
-            </Button>
-            <Button href={REPORT_LINKS.chakshu} iconRight="external-link">
-              Chakshu
-            </Button>
+            {(report.report_links ?? DEFAULT_LINKS).map((link) => (
+              <Button
+                key={link.href}
+                href={link.href}
+                icon={link.href.startsWith('tel:') ? 'phone' : undefined}
+                iconRight={link.href.startsWith('http') ? 'external-link' : undefined}
+              >
+                {link.label}
+              </Button>
+            ))}
           </div>
         </div>
       </Panel>
@@ -138,6 +176,38 @@ export default function ReportPage({ report, onBack, onNewCall }) {
         </Button>
       </footer>
     </main>
+  )
+}
+
+/* Reports from before region support (India only) */
+const DEFAULT_LINKS = [
+  { label: 'Call 1930', href: REPORT_LINKS.helpline },
+  { label: 'cybercrime.gov.in', href: REPORT_LINKS.cybercrime },
+  { label: 'Chakshu', href: REPORT_LINKS.chakshu },
+]
+
+/** "Sent money? …" → the lead-in in bold, as in the India copy, and URLs as links. */
+function StepText({ text }) {
+  const match = text.match(/^([^?]{2,40}\?)\s(.*)$/)
+  const lead = match ? match[1] : null
+  const rest = match ? match[2] : text
+  const parts = rest.split(/(https?:\/\/[^\s,)]+)/g)
+  return (
+    <>
+      {lead && <strong>{lead} </strong>}
+      {parts.map((part, i) => {
+        if (!part.startsWith('http')) return part
+        const url = part.replace(/\.$/, '') // a full stop after a link belongs to the sentence
+        return (
+          <span key={i}>
+            <a href={url} target="_blank" rel="noreferrer">
+              {url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+            </a>
+            {part.endsWith('.') && '.'}
+          </span>
+        )
+      })}
+    </>
   )
 }
 

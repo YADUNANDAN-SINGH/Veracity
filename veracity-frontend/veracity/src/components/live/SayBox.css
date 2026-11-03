@@ -1,0 +1,54 @@
+.say-box {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.say-box__row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.say-box__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.say-box__tries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A suggestion: one click says it */
+.say-box__try {
+  padding: var(--space-1) var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.say-box__try:hover:not(:disabled) {
+  border-style: solid;
+  color: var(--ink);
+}
+
+.say-box__error {
+  color: var(--risk-high);
+}
+
+@media (max-width: 640px) {
+  .say-box__row {
+    flex-direction: column;
+  }
+}

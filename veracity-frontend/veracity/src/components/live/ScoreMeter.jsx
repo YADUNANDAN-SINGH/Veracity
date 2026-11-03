@@ -72,11 +72,11 @@ function ScriptMeter({ score, flags }) {
 function scriptCaption(categories) {
   if (categories.size === 0) return 'Listening for scam phrases in the caller’s words.'
   const count = `${categories.size} ${categories.size === 1 ? 'category' : 'categories'}`
-  if (categories.has('AUTHORITY_IMPERSONATION') && categories.has('PAYMENT_PRESSURE')) {
-    return `${count} · authority and payment together (digital-arrest pattern)`
-  }
   if (categories.has('FAMILY_EMERGENCY') && categories.has('PAYMENT_PRESSURE')) {
     return `${count} · family emergency and payment together (voice-clone pattern)`
+  }
+  if (categories.has('AUTHORITY_IMPERSONATION') && categories.has('PAYMENT_PRESSURE')) {
+    return `${count} · authority and payment together (digital-arrest pattern)`
   }
   if (categories.size === 1) return `${count} · ${describeCategory([...categories][0]).short}`
   return count

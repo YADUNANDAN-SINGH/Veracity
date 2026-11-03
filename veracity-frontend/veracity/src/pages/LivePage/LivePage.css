@@ -40,6 +40,12 @@
   gap: var(--space-3);
 }
 
+/* Held payments sit under the banner, full width: the most important thing on screen */
+.live-page__gates {
+  display: grid;
+  gap: var(--space-4);
+}
+
 .live-page__grid {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 2fr;

@@ -6,7 +6,7 @@
  */
 export const SCAM_CATEGORIES = {
   OTP_PIN_REQUEST: { title: 'Asks for an OTP, PIN or CVV', short: 'OTP', severity: 3 },
-  AUTHORITY_IMPERSONATION: { title: 'Claims to be police, CBI or an official', short: 'Authority', severity: 3 },
+  AUTHORITY_IMPERSONATION: { title: 'Claims to be police, a lawyer or an official', short: 'Authority', severity: 3 },
   THREAT_ARREST: { title: 'Threatens arrest (“digital arrest”)', short: 'Threat', severity: 3 },
   PAYMENT_PRESSURE: { title: 'Pushes you to transfer money', short: 'Payment', severity: 3 },
   REMOTE_ACCESS: { title: 'Asks you to install an app or share your screen', short: 'Remote access', severity: 3 },

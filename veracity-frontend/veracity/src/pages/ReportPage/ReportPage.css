@@ -118,3 +118,9 @@
     align-items: stretch;
   }
 }
+
+/* Payments made during the call: decided here, after the callback */
+.report-page__payments {
+  display: grid;
+  gap: var(--space-4);
+}

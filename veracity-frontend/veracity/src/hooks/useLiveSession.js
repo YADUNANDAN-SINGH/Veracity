@@ -6,8 +6,10 @@
  *
  * status: 'idle' | 'starting' | 'live' | 'stopping' | 'ended' | 'error'
  *
- * While the backend has no session API (start returns 404), it plays the
- * scripted call in demoCall.js instead and sets `demo: true`.
+ * A replayed call (judge mode, VERA_FAKE=1, or a chosen `scenario`) runs on the
+ * backend through the real scam rules and announces itself with a `mode` event.
+ * Only an old backend with no session API (start returns 404) falls back to the
+ * scripted call in demoCall.js, played in the browser, with `demo: true`.
  */
 import { useCallback, useReducer, useRef } from 'react'
 import { openLiveSocket, startSession, stopSession } from '../api/session'
@@ -20,6 +22,7 @@ const INITIAL = {
   status: 'idle',
   sessionId: null,
   demo: false,
+  replay: null, // the backend's `mode` event on a replayed call: { scenario, title, source, voice_scored, region }
   error: null,
   elapsed: 0,
   level: null, // latest dBFS
@@ -59,6 +62,8 @@ function reducer(state, action) {
 function applyEvent(state, event) {
   const elapsed = typeof event.t === 'number' ? Math.max(state.elapsed, event.t) : state.elapsed
   switch (event.type) {
+    case 'mode':
+      return { ...state, replay: event.replay ? event : null }
     case 'level':
       return {
         ...state,
@@ -94,7 +99,7 @@ export function useLiveSession() {
   const closeRef = useRef(null) // closes the socket, or the demo's stop()
   const activeRef = useRef(false) // guards double starts (StrictMode runs effects twice)
 
-  const start = useCallback(async ({ callerNumber, saveAudio, number }) => {
+  const start = useCallback(async ({ callerNumber, saveAudio, number, scenario = null }) => {
     if (activeRef.current) return
     activeRef.current = true
     dispatch({ type: 'start' })
@@ -104,7 +109,7 @@ export function useLiveSession() {
     }
 
     try {
-      const { session_id } = await startSession({ callerNumber, saveAudio })
+      const { session_id } = await startSession({ callerNumber, saveAudio, scenario })
       closeRef.current = openLiveSocket(session_id, {
         onEvent,
         onClose: () => dispatch({ type: 'stream-lost' }),

@@ -1,0 +1,58 @@
+.protected-send {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.protected-send__fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.protected-send__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.protected-send__money {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.protected-send__money .protected-send__input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.protected-send__input {
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.protected-send__input.t-code {
+  font-family: var(--font-mono);
+}
+
+.protected-send__hint {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-200);
+}
+
+/* PayPal draws its own button; give it room and keep it above the fold */
+.protected-send__button {
+  min-height: 48px;
+}
+
+.protected-send__small {
+  display: block;
+}
+
+.protected-send__small svg {
+  vertical-align: -1px;
+}

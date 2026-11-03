@@ -109,8 +109,13 @@ def health(request: Request):
         "webhooks": bool(os.environ.get("PAYPAL_WEBHOOK_ID")),
         "payouts": payment_gate.PAYOUTS_ENABLED,
     }
+    # A sandbox buyer account judges can log in to PayPal with (test money only); shown on the dashboard
+    buyer = None
+    if os.environ.get("VERA_SANDBOX_BUYER_EMAIL"):
+        buyer = {"email": os.environ["VERA_SANDBOX_BUYER_EMAIL"], "password": os.environ.get("VERA_SANDBOX_BUYER_PASSWORD")}
     if MODE == "judge":  # nothing to check on a server: no phone, no audio input, no local models
-        return {"status": "ok", "mode": MODE, "region": DEFAULT_REGION, "fake_mode": False, "paypal": paypal}
+        return {"status": "ok", "mode": MODE, "region": DEFAULT_REGION, "fake_mode": False, "paypal": paypal,
+                "sandbox_buyer": buyer}
 
     adb_found = shutil.which("adb") is not None
     scrcpy_found = shutil.which("scrcpy") is not None
@@ -121,6 +126,7 @@ def health(request: Request):
         "mode": MODE,
         "region": DEFAULT_REGION,
         "paypal": paypal,
+        "sandbox_buyer": buyer,
         "fake_mode": os.environ.get("VERA_FAKE") == "1",
         "port": request.url.port or 8000,
         "adb_found": adb_found,

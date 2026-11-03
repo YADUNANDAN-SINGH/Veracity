@@ -2,7 +2,8 @@
  * POST /api/number/check: the lookup behind Step 2 (Check number).
  *
  * Request:  { "number": "+91 98765 43210", "region": "IN" }
- *           region is only used when the number has no +country code.
+ *           region is only used when the number has no +country code; left out,
+ *           the backend uses its own (VERA_REGION).
  *
  * Response:
  * {
@@ -21,14 +22,18 @@
  */
 import { apiRequest } from './client'
 
-export const DEFAULT_REGION = 'IN'
-
-export function checkNumber(number, { region = DEFAULT_REGION, signal } = {}) {
+export function checkNumber(number, { region, signal } = {}) {
   return apiRequest('/api/number/check', {
     method: 'POST',
-    body: JSON.stringify({ number, region }),
+    body: JSON.stringify(region ? { number, region } : { number }),
     signal,
   })
+}
+
+/** Example number and hint for the input, by the backend's region. */
+export const REGION_HINTS = {
+  IN: { placeholder: '+91 98765 43210', hint: 'Numbers without a + country code are read as Indian.' },
+  US: { placeholder: '+1 202 555 0143', hint: 'Numbers without a + country code are read as US numbers.' },
 }
 
 /* phonenumbers' PhoneNumberType names → words for the UI */
