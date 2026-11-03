@@ -69,15 +69,18 @@ export default function PaymentGate({ payment, busy, onVerify, onCancel }) {
 
 /** The call's risk when the gate decided, and the caller's own words behind it. */
 function Why({ risk }) {
+  // The gate can be stricter than the call's overall level: any scam signs mean "call back first"
+  const level = risk.gate_level ?? risk.level
   return (
     <div className="gate__why">
       <p className="t-label">
         Why:{' '}
-        <Badge tone={RISK_TONE[risk.level] ?? 'neutral'}>
-          {risk.level === 'HIGH' ? 'High' : risk.level === 'MEDIUM' ? 'Medium' : 'Low'}-risk call · {risk.score}/100
+        <Badge tone={RISK_TONE[level] ?? 'neutral'}>
+          {level === 'HIGH' ? 'High' : level === 'MEDIUM' ? 'Medium' : 'Low'} risk for a payment
         </Badge>
         {risk.active && <span className="muted t-body-sm"> · decided during the call</span>}
       </p>
+      {risk.gate_why && <p className="t-body-sm">{risk.gate_why}</p>}
       {risk.flags?.length > 0 && (
         <ul className="gate__quotes">
           {risk.flags.map((flag) => (
@@ -91,8 +94,8 @@ function Why({ risk }) {
         </ul>
       )}
       <p className="t-body-sm muted">
-        Voice: {risk.voice_state ? `${VOICE_LABEL[risk.voice_state]} (peak ${risk.voice_peak}%)` : 'not scored on this call'}
-        {' · '}Script score {risk.script_score}/100
+        Call risk {risk.score}/100 · Script {risk.script_score}/100 · Voice{' '}
+        {risk.voice_state ? `${VOICE_LABEL[risk.voice_state]} (peak ${risk.voice_peak}%)` : 'not scored on this call'}
       </p>
     </div>
   )

@@ -45,7 +45,7 @@ class StubCall:
     def risk_snapshot(self):
         return {
             "session_id": self.id, "active": self._active, "score": self.score, "level": self.level, "reasons": [],
-            "voice_state": "LIKELY_AI", "voice_peak": 91, "script_score": self.score,
+            "voice_state": "LIKELY_HUMAN", "voice_peak": 12, "script_score": self.score,
             "flags": [{"category": "PAYMENT_PRESSURE", "severity": 3, "evidence": "send it on PayPal", "t": 35.0}],
         }
 
@@ -123,6 +123,11 @@ def test_without_paypal_keys_the_api_says_so(monkeypatch):
     ({"level": "MEDIUM", "active": False, "score": 50}, ("HELD", "verify")),
     ({"level": "HIGH", "active": True, "score": 100}, ("HELD", "likely_scam")),
     ({"level": "HIGH", "active": False, "score": 100}, ("HELD", "likely_scam")),
+    # A scam told by a real person can fuse to LOW; for money, scam signs in the words are enough
+    ({"level": "LOW", "active": False, "score": 24, "script_score": 68}, ("HELD", "verify")),
+    ({"level": "LOW", "active": False, "score": 34, "script_score": 85}, ("HELD", "likely_scam")),
+    ({"level": "LOW", "active": True, "score": 30, "voice_state": "LIKELY_AI"}, ("HELD", "likely_scam")),
+    ({"level": "LOW", "active": False, "score": 8, "script_score": 24}, ("CAPTURED", None)),
 ])
 def test_policy(risk, expected):
     status, reason, _why = payment_gate.decide(risk)

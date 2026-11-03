@@ -92,18 +92,49 @@ def _parse(ts: str | None) -> datetime | None:
 
 # ----- the decision -----
 
+def gate_level(risk: dict) -> tuple[str, str]:
+    """(level, why) the gate acts on: the call's fused level, raised by any one strong sign.
+
+    The fused score weighs number, voice and script together, so a scam told by a
+    real person with an ordinary number can fuse to LOW. Money gets a stricter
+    rule: some scam signs in the script (≥ 40) are enough to ask for a callback.
+    On eval/transcripts.jsonl that holds 21 of 24 test scams and none of 24
+    ordinary calls (eval/results.md).
+    """
+    level, score, script = risk.get("level", "LOW"), risk.get("score", 0), risk.get("script_score", 0)
+    if level == "HIGH":
+        return "HIGH", f"The call is high risk ({score}/100)."
+    if risk.get("voice_state") == "LIKELY_AI":
+        return "HIGH", "The caller's voice sounded AI-generated."
+    if script >= 80:
+        return "HIGH", f"The caller's words match a known scam script ({script}/100)."
+    if level == "MEDIUM":
+        return "MEDIUM", f"The call is medium risk ({score}/100)."
+    if script >= 40:
+        return "MEDIUM", f"The caller's words show scam signs ({script}/100)."
+    return "LOW", f"The call is low risk ({score}/100)."
+
+
 def decide(risk: dict | None) -> tuple[str, str | None, str]:
     """(status, hold_reason, why) for a payment that was just authorized."""
     if risk is None:
         return "CAPTURED", None, "No call is linked to this payment, so it was released."
-    level = risk.get("level", "LOW")
+    level, why = gate_level(risk)
     if level == "HIGH":
-        return "HELD", "likely_scam", f"The call is high risk ({risk.get('score', 0)}/100)."
+        return "HELD", "likely_scam", why
     if risk.get("active"):
         return "HELD", "call_active", "The call is still going on."
     if level == "MEDIUM":
-        return "HELD", "verify", f"The call is medium risk ({risk.get('score', 0)}/100)."
-    return "CAPTURED", None, f"The call was low risk ({risk.get('score', 0)}/100)."
+        return "HELD", "verify", why
+    return "CAPTURED", None, why
+
+
+def _with_gate(risk: dict | None) -> str | None:
+    """The risk snapshot as stored with the payment, with the level the gate acted on."""
+    if risk is None:
+        return None
+    level, why = gate_level(risk)
+    return json.dumps({**risk, "gate_level": level, "gate_why": why})
 
 
 def risk_from_report(report: dict) -> dict:
@@ -189,8 +220,7 @@ def authorize(payment_id: str) -> dict:
         status, reason, why = decide(risk)
         payment = payments_db.update_payment(
             payment_id, authorization_id=auth["id"], status="HELD", hold_reason=reason,
-            risk_json=json.dumps(risk) if risk else None,
-            expires_at=_iso(_now() + timedelta(hours=HOLD_HOURS)),
+            risk_json=_with_gate(risk), expires_at=_iso(_now() + timedelta(hours=HOLD_HOURS)),
         )
         payments_db.add_event(payment_id, "veracity", "Decision", {
             "outcome": "release" if status == "CAPTURED" else "hold", "hold_reason": reason, "why": why,
@@ -257,11 +287,11 @@ def refresh(payment_id: str) -> dict:
             return _release(payment, "Confirmed on a callback and the cooling-off is over.")
         if payment["hold_reason"] == "call_active" and payment["session_id"]:
             risk = _risk_provider(payment["session_id"])
-            if risk and risk.get("level") == "HIGH":
+            if risk and gate_level(risk)[0] == "HIGH":
                 payments_db.add_event(payment_id, "veracity", "Escalated: the call became high risk", {
-                    "risk_score": risk.get("score"),
+                    "risk_score": risk.get("score"), "why": gate_level(risk)[1],
                 })
-                return payments_db.update_payment(payment_id, hold_reason="likely_scam", risk_json=json.dumps(risk))
+                return payments_db.update_payment(payment_id, hold_reason="likely_scam", risk_json=_with_gate(risk))
         return payment
 
 
@@ -278,9 +308,9 @@ def on_session_ended(session_id: str, report: dict) -> list[dict]:
                 "risk_level": risk["level"], "risk_score": risk["score"],
             })
             if status == "CAPTURED":
-                _release(payments_db.update_payment(payment["payment_id"], risk_json=json.dumps(risk)), why)
+                _release(payments_db.update_payment(payment["payment_id"], risk_json=_with_gate(risk)), why)
             else:
-                payments_db.update_payment(payment["payment_id"], hold_reason=reason, risk_json=json.dumps(risk))
+                payments_db.update_payment(payment["payment_id"], hold_reason=reason, risk_json=_with_gate(risk))
     return [view(p) for p in payments_db.list_payments(session_id)]
 
 
