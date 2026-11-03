@@ -83,9 +83,9 @@ def main() -> None:
         "| Threshold | Scam calls caught (recall) | Ordinary calls flagged (false alarms) | Precision |",
         "| --- | ---: | ---: | ---: |",
     ]
-    for name, threshold, label in (
-        ("alert", ALERT, "Live alert, script ≥ 80"),
-        ("signs", SIGNS, "Some scam signs, ≥ 40: Protected Send holds for a callback"),
+    for name, label in (
+        ("alert", f"Live alert, script ≥ {ALERT}"),
+        ("signs", f"Some scam signs, ≥ {SIGNS}: Protected Send holds for a callback"),
     ):
         r = at[name]
         md.append(
@@ -130,7 +130,7 @@ def main() -> None:
         "",
         "- The transcripts were written for the test, not taken from real calls, and the rules were tuned on "
         "similar phrasing, so real-world recall will be lower.",
-        "- Live calls add speech-recognition errors (Hindi on phone audio especially; see README §5).",
+        "- Live calls add speech-recognition errors (Hindi on phone audio especially; see README §6).",
         "- The local LLM layer, which adds flags the phrases miss, isn't part of this test.",
         "- The voice model is measured separately: `eval/voice_eval.py`, on recordings.",
         "",

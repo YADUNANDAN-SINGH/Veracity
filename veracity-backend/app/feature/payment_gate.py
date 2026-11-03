@@ -7,6 +7,8 @@
 #   cancel()            void: the money never leaves the payer
 #   refresh()           on every read: escalate a hold if the call got riskier, release once a
 #                       cooling-off ends, void a hold that has run out
+#   sweep()             refresh() for every held payment, once a minute from main.py, so holds
+#                       run out and cooling-offs end even when nobody has the dashboard open
 #   on_session_ended()  holds that were waiting for the call to end are decided with the final report
 #   apply_webhook()     PayPal is the source of truth for captures, voids and payouts
 #
@@ -248,7 +250,8 @@ def verify(payment_id: str, outcome: str) -> dict:
             payments_db.add_event(payment_id, "veracity", "Callback: they didn't ask for this money", {"contact": contact})
             return _cancel_held(_get(payment_id), f"{contact} said they didn't ask for this money.")
 
-        if payment["hold_reason"] == "call_active":
+        # A "confirmed" said while the caller is still on the line could be the caller talking
+        if payment["hold_reason"] == "call_active" or _call_live(payment):
             raise GateError(409, f"End the call first, then call {contact} back on a number saved in your phone.")
         payments_db.add_event(payment_id, "veracity", "Callback: confirmed", {"contact": contact})
         if payment["hold_reason"] == "likely_scam" and COOL_OFF_MIN > 0:
@@ -293,6 +296,18 @@ def refresh(payment_id: str) -> dict:
                 })
                 return payments_db.update_payment(payment_id, hold_reason="likely_scam", risk_json=_with_gate(risk))
         return payment
+
+
+def sweep() -> int:
+    """refresh() every held payment; returns how many left the HELD state."""
+    changed = 0
+    for payment in payments_db.list_held():
+        try:
+            if refresh(payment["payment_id"])["status"] != "HELD":
+                changed += 1
+        except Exception as e:  # PayPal down, say: the next sweep tries again
+            log.warning("Couldn't refresh held payment %s: %s", payment["payment_id"], e)
+    return changed
 
 
 def on_session_ended(session_id: str, report: dict) -> list[dict]:
@@ -421,11 +436,18 @@ def _reconcile(payment: dict, error: PayPalError, *, wanted: str) -> dict:
 
 # ----- reading -----
 
+def _call_live(payment: dict) -> bool:
+    """The call this payment was made on is still going on."""
+    risk = _risk_provider(payment["session_id"]) if payment["session_id"] else None
+    return bool(risk and risk.get("active"))
+
+
 def view(payment: dict) -> dict:
     """The payment as the API returns it, with the policy text and the audit trail."""
     reason = payment["hold_reason"]
     policy = POLICY.get(reason, "").format(contact=payment["contact_name"], minutes=f"{COOL_OFF_MIN:g}") if reason else None
     held = payment["status"] == "HELD"
+    live = held and _call_live(payment)
     return {
         "payment_id": payment["payment_id"],
         "session_id": payment["session_id"],
@@ -451,7 +473,9 @@ def view(payment: dict) -> dict:
         "expires_at": payment["expires_at"],
         "created_at": payment["created_at"],
         "updated_at": payment["updated_at"],
-        "can_verify": held and reason != "call_active" and payment["verification"] != "confirmed",
+        "call_live": live,
+        # Confirming needs the call to be over; cancelling never waits
+        "can_verify": held and reason != "call_active" and payment["verification"] != "confirmed" and not live,
         "can_cancel": payment["status"] in ("CREATED", "HELD"),
         "events": payments_db.list_events(payment["payment_id"]),
     }

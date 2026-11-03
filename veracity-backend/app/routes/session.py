@@ -79,10 +79,10 @@ async def start_session(body: StartRequest):
         else:
             session = Session(body.caller_number, body.save_audio, loop)
         await run_in_threadpool(session.start)
-    except ScenarioNotFound:
-        raise HTTPException(status_code=404, detail=f"No scenario called “{scenario_id}”.")
+    except ScenarioNotFound as e:
+        raise HTTPException(status_code=404, detail=f"No scenario called “{scenario_id}”.") from e
     except AudioDeviceError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e)) from e
     SESSIONS[session.id] = session
     return {"session_id": session.id, "replay": scenario_id is not None}
 

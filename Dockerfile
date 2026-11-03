@@ -2,10 +2,11 @@
 # No phone and no models: calls are replayed scenarios run through the real scam
 # rules, and Protected Send uses the real PayPal sandbox.
 #
-#   docker build -t veracity-judge .
-#   docker run -p 8000:8000 --env-file veracity-backend/.env veracity-judge   → http://localhost:8000
+#   docker build -t veracity .
+#   docker run --rm -p 8000:8000 veracity                       → http://localhost:8000
+#   docker run --rm -p 8000:8000 -e PAYPAL_CLIENT_ID=... -e PAYPAL_CLIENT_SECRET=... veracity
 #
-# Render builds this file (render.yaml). The phone build runs natively on a Mac (README §6).
+# Render builds this file (render.yaml). The phone build runs natively on a Mac (README §7 and §8).
 
 # ---- the dashboard, built once ----
 FROM node:22-alpine AS web

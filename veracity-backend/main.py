@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from app.feature import payment_gate
 from app.feature.session import warm_models
 from app.routes import call, health, number, payment, report, session
 
@@ -16,6 +17,13 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 JUDGE_MODE = os.environ.get("VERA_MODE") == "judge"
 # The built dashboard (npm run build → dist/), served by this app in the hosted judge build
 STATIC_DIR = Path(os.environ["VERA_STATIC_DIR"]).resolve() if os.environ.get("VERA_STATIC_DIR") else None
+SWEEP_EVERY_S = 60
+
+
+def sweep_holds(stop: threading.Event) -> None:
+    """Void held payments that ran out and finish cooling-offs, with or without the dashboard open."""
+    while not stop.wait(SWEEP_EVERY_S):
+        payment_gate.sweep()
 
 
 @asynccontextmanager
@@ -24,7 +32,10 @@ async def lifespan(app: FastAPI):
     # The judge build replays calls and has no models to load.
     if not JUDGE_MODE:
         threading.Thread(target=warm_models, name="warm-models", daemon=True).start()
+    stop = threading.Event()
+    threading.Thread(target=sweep_holds, args=(stop,), name="payment-sweeper", daemon=True).start()
     yield
+    stop.set()
 
 
 app = FastAPI(lifespan=lifespan)

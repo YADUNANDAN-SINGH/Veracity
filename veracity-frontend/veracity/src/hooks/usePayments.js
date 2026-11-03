@@ -3,17 +3,24 @@
  *
  * create() and approve() are what the PayPal button calls: create the order
  * (intent AUTHORIZE), then, once the payer approves in PayPal, authorize it so
- * the payment gate can decide. Open payments are polled every few seconds,
- * because a hold can change on its own: it escalates if the call turns into a
- * scam, it is released when a cooling-off ends, and PayPal webhooks update it.
+ * the payment gate can decide. The call's payments are polled every few seconds
+ * while the call is on or a payment is still open, because a hold can change on
+ * its own (it escalates if the call turns into a scam, it is released when a
+ * cooling-off ends, PayPal webhooks update it), and so that a payment made for
+ * this call from another device shows up too.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  authorizePayment, cancelPayment, createPayment, fetchPayment, fetchPaymentConfig, isOpen, listPayments,
-  verifyPayment,
+  authorizePayment, cancelPayment, createPayment, fetchPaymentConfig, isOpen, listPayments, verifyPayment,
 } from '../api/payment'
 
 const POLL_MS = 2500
+
+/** The server's list, plus any payment made here that the server's answer predates. */
+function merge(local, server) {
+  const ids = new Set(server.map((p) => p.payment_id))
+  return [...server, ...local.filter((p) => !ids.has(p.payment_id))]
+}
 
 /**
  * @param {string}  sessionId  the call's session id
@@ -49,17 +56,19 @@ export function usePayments(sessionId, ended = false) {
     return () => controller.abort()
   }, [sessionId, ended])
 
-  // Follow open payments until the gate has decided
-  const openIds = payments.filter(isOpen).map((p) => p.payment_id).join(',')
+  // Follow the call's payments while the call is on, and afterwards until the gate has decided them all
+  const hasOpen = payments.some(isOpen)
   useEffect(() => {
-    if (!openIds) return undefined
+    if (!sessionId || sessionId === 'demo' || (ended && !hasOpen)) return undefined
     const timer = setInterval(() => {
-      for (const id of openIds.split(',')) {
-        fetchPayment(id).then(upsert).catch(() => {}) // keep the last known state on a blip
-      }
+      listPayments(sessionId)
+        .then((list) =>
+          setState((prev) => (prev.sessionId === sessionId ? { sessionId, payments: merge(prev.payments, list) } : prev)),
+        )
+        .catch(() => {}) // keep the last known state on a blip
     }, POLL_MS)
     return () => clearInterval(timer)
-  }, [openIds, upsert])
+  }, [sessionId, ended, hasOpen])
 
   /** PayPal button → createOrder: returns the PayPal order id. */
   const create = useCallback(

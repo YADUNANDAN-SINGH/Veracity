@@ -158,6 +158,20 @@ def test_scam_call_holds_the_money_and_a_denied_callback_voids_it(fake, monkeypa
     assert client.post(f"/api/payment/{payment['payment_id']}/cancel").status_code == 409
 
 
+def test_nobody_can_confirm_while_the_caller_is_on_the_line(fake, monkeypatch):
+    call = start_call(monkeypatch, "HIGH", 100)
+    payment = pay(fake, session_id="call1")
+    pid = payment["payment_id"]
+    assert payment["call_live"] is True and payment["can_verify"] is False and payment["can_cancel"] is True
+    res = client.post(f"/api/payment/{pid}/verify", json={"outcome": "confirmed"})
+    assert res.status_code == 409 and "End the call" in res.json()["detail"]
+
+    call._active = False  # hung up: now the callback can confirm (and the cooling-off still applies)
+    assert client.get(f"/api/payment/{pid}").json()["can_verify"] is True
+    held = client.post(f"/api/payment/{pid}/verify", json={"outcome": "confirmed"}).json()
+    assert held["status"] == "HELD" and held["release_at"]
+
+
 def test_high_risk_release_waits_for_the_cooling_off(fake, monkeypatch):
     start_call(monkeypatch, "HIGH", 95, active=False)
     payment = pay(fake, session_id="call1")
@@ -212,6 +226,17 @@ def test_a_hold_that_runs_out_is_voided(fake, monkeypatch):
     now = payment_gate._now()
     monkeypatch.setattr(payment_gate, "_now", lambda: now + timedelta(hours=73))
     assert client.get(f"/api/payment/{payment['payment_id']}").json()["status"] == "VOIDED"
+
+
+def test_the_sweeper_voids_a_hold_nobody_looks_at(fake, monkeypatch):
+    start_call(monkeypatch, "MEDIUM", 50, active=False)
+    held = pay(fake, session_id="call1")
+    pay(fake, amount="40")  # no call: released at once, so the sweeper has nothing to do with it
+    assert payment_gate.sweep() == 0
+    now = payment_gate._now()
+    monkeypatch.setattr(payment_gate, "_now", lambda: now + timedelta(hours=73))
+    assert payment_gate.sweep() == 1
+    assert fake.auths[held["paypal"]["authorization_id"]]["status"] == "VOIDED"
 
 
 def test_a_failed_capture_is_reconciled_with_paypal(fake, monkeypatch):

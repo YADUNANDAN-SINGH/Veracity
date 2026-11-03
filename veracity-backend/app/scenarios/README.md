@@ -36,5 +36,10 @@ cd veracity-backend
 python scripts/build_replay.py app/data/audio/<session>.wav --base grandparent_us --out app/scenarios/grandparent_us_recorded.json
 ```
 
-It runs the deepfake model and Whisper on the recording and writes their output into the scenario,
-with the recording's SHA-256, so anyone can check which file the scores came from.
+It runs the deepfake model and Whisper on the recording, the same way a live call does, and writes
+their output into a copy of the `--base` scenario (its region, caller number and payment), with the
+recording's SHA-256, so anyone can check which file the scores came from. Whisper's language follows
+the base scenario's region (`en` for US, `hi` for India); pass `--language` to change it. Then replay
+it with `VERA_SCENARIO=grandparent_us_recorded`, or pick it in Step 2.
+
+Only record voices you have consent for: your own, or a clone of your own voice that you made.

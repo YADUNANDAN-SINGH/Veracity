@@ -103,7 +103,8 @@ function Why({ risk }) {
 
 /** What the payer should do now, and the buttons for it. */
 function NextStep({ payment, contact, busy, onVerify, onCancel }) {
-  const waitingForCall = payment.hold_reason === 'call_active'
+  // The caller may still be listening: hang up before anyone confirms
+  const waitingForCall = payment.hold_reason === 'call_active' || payment.call_live
   const coolingOff = payment.verification === 'confirmed' && payment.release_at
 
   return (

@@ -99,6 +99,13 @@ def list_payments(session_id: str | None = None) -> list[dict]:
         return [dict(r) for r in rows.fetchall()]
 
 
+def list_held() -> list[dict]:
+    """Every payment PayPal is still holding, oldest first."""
+    with closing(_connect()) as conn:
+        rows = conn.execute("SELECT * FROM payments WHERE status = 'HELD' ORDER BY created_at")
+        return [dict(r) for r in rows.fetchall()]
+
+
 def update_payment(payment_id: str, **fields) -> dict:
     unknown = set(fields) - _FIELDS
     if unknown:
