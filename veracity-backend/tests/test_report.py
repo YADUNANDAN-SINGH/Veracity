@@ -85,9 +85,10 @@ def test_report_shape():
     report = make_report().model_dump(mode="json")
     assert report["overall"] == {
         "risk_level": "HIGH", "score": 100,
-        "top_reasons": ["Voice sounded synthetic (peak 97%)", "Scam-script red flags (score 100)"],
+        "top_reasons": ["Scam-script red flags (score 100)", "Voice may be synthetic (peak 58%)"],
     }
     assert report["voice"]["max_p_ai"] == 0.97
+    assert report["voice"]["smoothed_peak"] == 0.585  # one 97% window after a 20% one
     assert report["voice"]["mean_p_ai"] == 0.585
     assert report["call"]["duration_s"] == 33.0
     assert report["generated_at"] == "2026-10-31T12:00:33Z"
@@ -142,3 +143,9 @@ def test_community_report_raises_the_number_score():
 def test_community_report_validates_input():
     assert client.post("/api/number/report", json={"number": "hello", "category": "other"}).status_code == 422
     assert client.post("/api/number/report", json={"number": "9876543210", "category": "spam"}).status_code == 422
+
+
+def test_one_noisy_window_does_not_make_a_call_high():
+    # Phone audio throws the odd spike; the risk score uses the smoothed voice, like the live verdict
+    report = make_report(number=None, script_score=0)
+    assert report.overall.risk_level != "HIGH"

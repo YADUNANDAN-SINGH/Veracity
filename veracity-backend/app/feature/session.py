@@ -143,7 +143,7 @@ class Session:
         """Number, voice and script fused from what has been heard so far, the same way the report does it."""
         number = self.number_analysis()
         windows, flags = list(self.windows), list(self.flags)
-        voice_peak = round(max((w["p_ai"] for w in windows), default=0.0) * 100)
+        voice_peak = round(voice.smoothed_peak([w["p_ai"] for w in windows]) * 100)
         script = scam_rules.script_score(set(self.categories))
         number_score = number["rule_score"] if number else None
         score, level = fuse(number_score, voice_peak, script)
@@ -157,6 +157,7 @@ class Session:
             "voice_state": self.smoother.state if windows else None,
             "voice_peak": voice_peak,
             "script_score": script,
+            "categories": sorted(self.categories),
             "flags": [{k: f[k] for k in ("category", "severity", "evidence", "t")} for f in top],
         }
 

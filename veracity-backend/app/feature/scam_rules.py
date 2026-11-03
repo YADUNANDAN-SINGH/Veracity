@@ -1,4 +1,4 @@
-# Scam-script layer 1 (Project Document §1.6): 11 categories of phrases,
+# Scam-script layer 1 (Project Document §1.6): 12 categories of phrases,
 # in English (Indian and US scams), Hinglish and Hindi (Whisper writes Hindi
 # in Devanagari). Flags appear instantly; the LLM layer adds what the phrases miss.
 #
@@ -39,8 +39,9 @@ _RULES: dict[str, tuple[int, list[str]]] = {
         r"safe account", r"secure account", r"transfer (?:the |your |all )?(?:money|amount|funds)",
         # US: payment apps, wires and cash pick-ups
         r"\b(?:send|pay|wire)\b.{0,30}?\b(?:paypal|venmo|zelle|cash ?app|western union|moneygram)\b",
-        r"\b(?:send|wire|transfer)\b(?:\s+\w+){0,3}?\s+(?:money|cash|funds|dollars|bucks)\b",
-        r"\b(?:need|owe|send|wire|transfer|pay)\b.{0,20}?\$\s?\d[\d,]{2,}", r"\bwire (?:transfer|it|the)\b",
+        r"\b(?:send|wire|transfer)\b(?:\s+\w+){0,3}?\s+(?:money|cash|funds|dollars|bucks|pounds|quid|euros)\b",
+        r"\b(?:need|owe|send|wire|transfer|pay)\b.{0,20}?\$\s?\d[\d,]{2,}",
+        r"\b(?:need|owe|send|wire|transfer|pay)\b.{0,20}?(?:[£€]\s?\d+|\d+\s?(?:pounds|quid|euros)\b)", r"\bwire (?:transfer|it|the)\b",
         r"pick(?:ed)? up (?:the )?(?:cash|money)", r"(?:cash|money) in (?:an |a )?envelope",
         r"\bpaise? (?:bhejo|bhejiye|transfer)\w*", r"gift ?cards?", r"\bcrypto\w*", r"\bbitcoin\b",
         r"security deposit", rf"पैसे भेज{DV}", r"ट्रांसफर", r"सेफ अकाउंट",
@@ -75,6 +76,16 @@ _RULES: dict[str, tuple[int, list[str]]] = {
         r"(?:broke|broken) (?:my )?nose", r"\bsound(?:s|ing)? (?:a (?:bit|little) )?different\b",
         r"new (?:number|phone|cell)", r"naya number", r"\bmusibat\b",
         r"एक्सीडेंट", r"अस्पताल", r"नया नंबर", r"मुसीबत",
+    ]),
+    # "Grandma, it's me": weak alone (friends say it too), but with a money request
+    # the payment is held until the user calls that person back (verify_first)
+    "IDENTITY_CLAIM": (1, [
+        r"\b(?:it'?s|this is) me,? your (?:grand)?\w+",
+        r"main (?:tumhara|aapka|tera|teri|tumhari|aapki) \w+ bol (?:raha|rahi)",
+        r"\b(?:it'?s|this is) (?:me|your (?:grand)?(?:son|daughter|child|kid)|your (?:nephew|niece|cousin|uncle|aunt(?:ie|y)?|brother|sister|neighbou?r|friend|boss|husband|wife))\b",
+        r"\bi'?m your (?:grand)?(?:son|daughter|nephew|niece|cousin|uncle|aunt(?:ie|y)?|brother|sister|neighbou?r|friend)\b",
+        r"don'?t you recogni[sz]e (?:me|my voice)", r"guess who(?:'s| is) (?:this|calling)",
+        r"\bpehchan(?:a|o|aa)\b", r"पहचाना", r"मैं (?:तुम्हारा|आपका|तेरा|तुम्हारी|आपकी) \S+ बोल",
     ]),
     "PRIZE_LOTTERY": (2, [
         r"\blottery\b", r"you (?:have|'ve) won", r"\bprize\b", r"\bsweepstakes\b", r"\bKBC\b", r"लॉटरी", r"इनाम",
@@ -155,6 +166,14 @@ def script_score(categories: set[str]) -> int:
         score += 20  # digital arrest
     if {"FAMILY_EMERGENCY", "PAYMENT_PRESSURE"} <= categories:
         score += 20  # voice-clone "family in trouble"
+    if {"IDENTITY_CLAIM", "PAYMENT_PRESSURE"} <= categories:
+        score += 20  # "it's me, your grandson ... send 400 dollars"
     if "OTP_PIN_REQUEST" in categories:
         score += 10
     return min(100, score)
+
+
+def verify_first(categories) -> bool:
+    """Someone who says they're family or a friend and asks for money: call them back before paying."""
+    categories = set(categories)
+    return "PAYMENT_PRESSURE" in categories and bool({"IDENTITY_CLAIM", "FAMILY_EMERGENCY"} & categories)

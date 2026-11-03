@@ -100,6 +100,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
                   defaults={scenario?.payment}
                   payments={payments}
                   sandboxBuyer={health?.sandbox_buyer}
+                  identityClaim={live.flags.some((f) => f.category === 'PAYMENT_PRESSURE') ? live.flags.find((f) => f.category === 'IDENTITY_CLAIM') : null}
                 />
               ) : (
                 <p className="t-body-sm muted">

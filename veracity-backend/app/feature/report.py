@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.feature.voice import smoothed_peak
+
 SCHEMA_VERSION = "1.0"
 APP_VERSION = "0.1.0"
 
@@ -100,6 +102,7 @@ class VoiceSection(BaseModel):
     threshold: float
     windows: list[VoiceWindow]
     max_p_ai: float
+    smoothed_peak: float = 0.0  # highest smoothed p_ai: what the risk score uses
     mean_p_ai: float
     final_state: VoiceState | None  # None when no speech was scored
 
@@ -239,6 +242,7 @@ def build_report(
         threshold=threshold,
         windows=[VoiceWindow(**w) for w in windows],
         max_p_ai=round(max(p_ais, default=0.0), 4),
+        smoothed_peak=round(smoothed_peak(p_ais), 4),
         mean_p_ai=round(sum(p_ais) / len(p_ais), 4) if p_ais else 0.0,
         final_state=final_state if p_ais else None,
     )
@@ -249,7 +253,7 @@ def build_report(
         transcript_excerpt=transcript[:TRANSCRIPT_LIMIT],
     )
 
-    voice_peak = round(voice.max_p_ai * 100)
+    voice_peak = round(voice.smoothed_peak * 100)
     score, level = fuse(number_section.rule_score if number_section else None, voice_peak, script_score)
 
     region = region.upper()

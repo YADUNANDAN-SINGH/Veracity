@@ -105,3 +105,12 @@ class VerdictSmoother:
         else:
             self.state = "UNCERTAIN" if self.ema >= T_UNCERTAIN else "LIKELY_HUMAN"
         return VoiceState(self.state, round(self.ema, 4), self.state != prev)
+
+
+def smoothed_peak(p_ais) -> float:
+    """Highest smoothed AI probability over a call's speech windows (what the gate and report fuse)."""
+    ema, peak = None, 0.0
+    for p in p_ais:
+        ema = p if ema is None else SMOOTH_ALPHA * p + (1 - SMOOTH_ALPHA) * ema
+        peak = max(peak, ema)
+    return peak

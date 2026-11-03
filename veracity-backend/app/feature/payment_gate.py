@@ -26,7 +26,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
-from app.feature import payments_db
+from app.feature import payments_db, scam_rules
 from app.feature.paypal_client import PayPalError, get_client
 
 log = logging.getLogger("veracity.gate")
@@ -112,6 +112,8 @@ def gate_level(risk: dict) -> tuple[str, str]:
         return "HIGH", f"The caller's words match a known scam script ({script}/100)."
     if level == "MEDIUM":
         return "MEDIUM", f"The call is medium risk ({score}/100)."
+    if scam_rules.verify_first(risk.get("categories", ())):
+        return "MEDIUM", "The caller said they're someone you know and asked for money: call them back on a saved number."
     if script >= 40:
         return "MEDIUM", f"The caller's words show scam signs ({script}/100)."
     return "LOW", f"The call is low risk ({score}/100)."
@@ -149,8 +151,9 @@ def risk_from_report(report: dict) -> dict:
         "level": report["overall"]["risk_level"],
         "reasons": report["overall"]["top_reasons"],
         "voice_state": report["voice"]["final_state"],
-        "voice_peak": round(report["voice"]["max_p_ai"] * 100),
+        "voice_peak": round(report["voice"].get("smoothed_peak", report["voice"]["max_p_ai"]) * 100),
         "script_score": report["script"]["script_score"],
+        "categories": sorted({f["category"] for f in report["script"]["red_flags"]}),
         "flags": [{k: f[k] for k in ("category", "severity", "evidence", "t")} for f in flags],
     }
 

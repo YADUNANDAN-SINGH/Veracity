@@ -1,5 +1,5 @@
 /*
- * The 11 scam-script categories (Project Document §1.6) in words for the UI.
+ * The 12 scam-script categories (Project Document §1.6) in words for the UI.
  * title: the red-flag heading, said as what the caller is doing to you.
  * short: the tag shown after the evidence in the transcript.
  * severity: 1–3, used when a flag arrives without one (e.g. in a saved report).
@@ -14,6 +14,7 @@ export const SCAM_CATEGORIES = {
   KYC_ACCOUNT_BLOCK: { title: 'Says your account or SIM will be blocked', short: 'KYC', severity: 2 },
   PARCEL_COURIER: { title: 'Talks about a parcel or courier in your name', short: 'Parcel', severity: 2 },
   FAMILY_EMERGENCY: { title: 'Claims a family member is in trouble', short: 'Family', severity: 2 },
+  IDENTITY_CLAIM: { title: 'Says they are someone you know', short: 'Identity', severity: 1 },
   PRIZE_LOTTERY: { title: 'Says you have won a prize', short: 'Prize', severity: 2 },
   URGENCY: { title: 'Rushes you to act right now', short: 'Urgency', severity: 1 },
 }

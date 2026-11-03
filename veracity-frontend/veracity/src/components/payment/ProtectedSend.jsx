@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { PayPalOneTimePaymentButton, PayPalProvider, usePayPal } from '@paypal/react-paypal-js/sdk-v6'
 import AlertBanner from '../ui/AlertBanner'
 import Icon from '../ui/Icon'
+import { formatClock } from '../../utils/formatTime'
 import './ProtectedSend.css'
 
 const EMPTY = { amount: '', currency: 'USD', recipient_name: '', contact_number: '', recipient_email: '', note: '' }
@@ -19,9 +20,10 @@ const EMPTY = { amount: '', currency: 'USD', recipient_name: '', contact_number:
  * @param {object}   props.config     GET /api/payment/config
  * @param {object}   props.defaults   the replayed scenario's payment, to pre-fill the form (optional)
  * @param {object}   props.payments   usePayments(sessionId)
+ * @param {object}   props.identityClaim  an IDENTITY_CLAIM flag (“it's me, your grandson”) on a call that asked for money
  * @param {object}   props.sandboxBuyer  { email, password } for judges, when the server shares one
  */
-export default function ProtectedSend({ config, defaults, payments, sandboxBuyer }) {
+export default function ProtectedSend({ config, defaults, payments, sandboxBuyer, identityClaim = null }) {
   const [form, setForm] = useState(() => ({ ...EMPTY, currency: config.currency, ...(defaults ?? {}) }))
   const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))
 
@@ -44,6 +46,12 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
 
   return (
     <div className="protected-send">
+      {identityClaim && (
+        <AlertBanner tone="caution" title="Call them back before you pay">
+          At {formatClock(identityClaim.t)} the caller said “{identityClaim.evidence}” and then asked for money. Hang up
+          and ring them on the number you already have saved. Veracity will hold this payment until you do.
+        </AlertBanner>
+      )}
       <p className="t-body-sm">
         Asked for money on this call? Send it here instead. <strong>PayPal holds it</strong>, and Veracity
         releases it only if the call checks out.

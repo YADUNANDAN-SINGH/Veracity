@@ -11,7 +11,7 @@ If the caller asks for money, **Protected Send** has **PayPal** hold it until th
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React%2019-dashboard-61DAFB?logo=react&logoColor=black)
 ![PayPal](https://img.shields.io/badge/PayPal-Orders%20v2%20%C2%B7%20Payments%20v2%20%C2%B7%20Webhooks-003087?logo=paypal&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-80%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-95%20passing-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 <img src="docs/screenshots/live-call.png" alt="Veracity live-call screen during a real test call" width="900">
@@ -208,7 +208,7 @@ flowchart TB
             CAP["Audio capture<br/>48 kHz to 16 kHz mono"]
             CAP -- "4 s window,<br/>every second" --> VOICE["AI-voice model<br/>wav2vec2 XLS-R"]
             CAP -- "6 to 12 s chunk,<br/>at a pause" --> STT["Whisper<br/>large-v3-turbo"]
-            STT --> RULES["Scam rules<br/>11 categories"]
+            STT --> RULES["Scam rules<br/>12 categories"]
             STT -- "every 2nd chunk" --> LLM["Local LLM<br/>Llama 3.1 8B"]
             NUM["Number intelligence<br/>rule score"]
             VOICE --> FUSE["Fusion and<br/>evidence report"]
@@ -745,7 +745,7 @@ Veracity/
 │   ├── requirements-judge.txt     the judge build: no audio input, no models
 │   ├── .env.example               every PayPal and Veracity setting
 │   ├── scripts/build_replay.py    a recorded call → a replay scenario with the real models' output
-│   ├── tests/                     80 tests; fake_paypal.py stands in for PayPal
+│   ├── tests/                     95 tests; fake_paypal.py stands in for PayPal
 │   └── app/
 │       ├── routes/                web layer: health, call, number, session, report, payment
 │       ├── scenarios/             sample calls for replays (format in its README)
@@ -753,7 +753,7 @@ Veracity/
 │       │   ├── audio_capture.py   BlackHole capture, resampling, scrcpy start/stop
 │       │   ├── voice.py           deepfake model, calibration, verdict smoother
 │       │   ├── transcriber.py     faster-whisper tuned for Hindi phone audio
-│       │   ├── scam_rules.py      11 categories, US and Indian scripts, Hindi-tolerant matching
+│       │   ├── scam_rules.py      12 categories, US and Indian scripts, Hindi-tolerant matching
 │       │   ├── scam_llm.py        Ollama structured output, quote checking
 │       │   ├── session.py         one live call: three threads → WebSocket events, live risk
 │       │   ├── replay.py          a sample call through the same pipeline, no phone needed
@@ -785,7 +785,7 @@ The backend keeps **web code** in `routes/` and **logic** in `feature/`, so ever
 ```bash
 cd veracity-backend
 pip install pytest            # first time
-python -m pytest              # 80 tests, no phone, models or PayPal account needed
+python -m pytest              # 95 tests, no phone, models or PayPal account needed
 
 cd ..
 python eval/run_rules_eval.py # the scam rules on 48 test calls → eval/results.md
