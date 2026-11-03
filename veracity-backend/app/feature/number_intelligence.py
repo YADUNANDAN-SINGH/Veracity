@@ -1,11 +1,16 @@
 # The core feature of the this file is to get basic infromation about the number like geo location and other public data awalable for the number.
 
 import math
+import os
 
 import phonenumbers as pn
 from phonenumbers import geocoder, carrier, timezone
 
 from app.feature import reports_db
+
+# Where the user lives: numbers without +country code are read as this region's,
+# and a number from another country counts as international. VERA_REGION=US for the US demo.
+DEFAULT_REGION = os.environ.get("VERA_REGION", "IN").upper()
 
 ''' 
 <------ For Testing ------->
@@ -44,7 +49,7 @@ class InvalidNumberError(ValueError):
     """Raised when the input can't be read as a phone number at all."""
 
 
-def get_number_details(raw: str, default_region: str = "IN"):
+def get_number_details(raw: str, default_region: str = DEFAULT_REGION):
     default_region = default_region.upper()
 
     try:
@@ -116,7 +121,7 @@ def rule_score(series: str, reports: int, reports_7d: int) -> tuple[int, list[st
     return score, reasons
 
 
-def analyse_number(raw: str, default_region: str = "IN") -> dict:
+def analyse_number(raw: str, default_region: str = DEFAULT_REGION) -> dict:
     """get_number_details plus the series, community reports and rule score."""
     details = get_number_details(raw, default_region)
     series = number_series(details)

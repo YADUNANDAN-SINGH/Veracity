@@ -1,6 +1,6 @@
 # Scam-script layer 1 (Project Document §1.6): 11 categories of phrases,
-# in English, Hinglish and Hindi (Whisper writes Hindi in Devanagari).
-# Flags appear instantly; the LLM layer adds what the phrases miss.
+# in English (Indian and US scams), Hinglish and Hindi (Whisper writes Hindi
+# in Devanagari). Flags appear instantly; the LLM layer adds what the phrases miss.
 #
 # Keep adding real scam phrases you find in news reports. The evidence is the
 # exact matched text, so the dashboard can highlight it in the transcript.
@@ -18,19 +18,30 @@ DV = "[\u0900-\u0963\u0966-\u097F]*"
 _RULES: dict[str, tuple[int, list[str]]] = {
     "OTP_PIN_REQUEST": (3, [
         r"\bOTP\b", r"one[- ]time password", r"\bCVV\b", r"\bUPI pin\b", r"\bATM pin\b", r"\bPIN\b",
-        r"verification code", r"\bcode (?:batao|bataiye|bolo|share karo)", r"ओ?टीपी", r"पिन",
+        r"verification code", r"security code", r"code (?:we|I) (?:just )?(?:sent|texted)",
+        r"\bcode (?:batao|bataiye|bolo|share karo)", r"ओ?टीपी", r"पिन",
     ]),
     "AUTHORITY_IMPERSONATION": (3, [
         r"\bCBI\b", r"cyber ?(?:cell|crime)", r"\bpolice\b", r"\bcustoms\b", r"\bTRAI\b", r"income ?tax",
         r"enforcement directorate", r"\bnarcotics\b", r"\bNCB\b", r"\bRBI\b", r"\binspector\b",
+        # US: government, police and the fake lawyer who takes over a "grandchild in jail" call
+        r"\bIRS\b", r"social security (?:administration|office)", r"\bFBI\b", r"\bU\.?S\.? marshals?\b",
+        r"\bsheriff'?s?\b", r"\b(?:officer|detective|sergeant|deputy)\b", r"fraud (?:department|team|prevention)",
+        r"\b(?:lawyer|attorney|public defender|bail bonds?(?:man)?)\b",
         r"पुलिस", r"सीबीआई", r"साइबर (?:सेल|क्राइम)", r"इंस्पेक्टर",
     ]),
     "THREAT_ARREST": (3, [
         r"digital(?:ly)? arrest", r"\bwarrant\b", r"money laundering", r"\bgiraftar\w*", r"\bjail\b",
-        r"\barrest\w*", r"डिजिटल अरेस्ट", rf"गिरफ्तार{DV}", r"जेल", r"अरेस्ट",
+        r"\barrest\w*", r"\bcustody\b", r"\bdeport\w*", r"legal action",
+        r"डिजिटल अरेस्ट", rf"गिरफ्तार{DV}", r"जेल", r"अरेस्ट",
     ]),
     "PAYMENT_PRESSURE": (3, [
         r"safe account", r"secure account", r"transfer (?:the |your |all )?(?:money|amount|funds)",
+        # US: payment apps, wires and cash pick-ups
+        r"\b(?:send|pay|wire)\b.{0,30}?\b(?:paypal|venmo|zelle|cash ?app|western union|moneygram)\b",
+        r"\b(?:send|wire|transfer)\b(?:\s+\w+){0,3}?\s+(?:money|cash|funds|dollars|bucks)\b",
+        r"\b(?:need|owe|send|wire|transfer|pay)\b.{0,20}?\$\s?\d[\d,]{2,}", r"\bwire (?:transfer|it|the)\b",
+        r"pick(?:ed)? up (?:the )?(?:cash|money)", r"(?:cash|money) in (?:an |a )?envelope",
         r"\bpaise? (?:bhejo|bhejiye|transfer)\w*", r"gift ?cards?", r"\bcrypto\w*", r"\bbitcoin\b",
         r"security deposit", rf"पैसे भेज{DV}", r"ट्रांसफर", r"सेफ अकाउंट",
         # "all your money" only with a transfer word close by
@@ -38,29 +49,40 @@ _RULES: dict[str, tuple[int, list[str]]] = {
     ]),
     "REMOTE_ACCESS": (3, [
         r"any ?desk", r"team ?viewer", r"quick ?support", r"screen ?shar\w*", r"\bAPK\b",
+        r"remote(?:ly)? (?:access|control)", r"screen ?connect", r"connect ?wise",
         r"install (?:this|the|an?) app", r"app (?:install|download) kar\w*", r"एनीडेस्क", r"स्क्रीन शेयर",
     ]),
     "SECRECY": (2, [
-        r"(?:don'?t|do not) tell anyone", r"keep (?:this|it) (?:a )?secret", r"kisi ko (?:mat|na|bhi mat) bata\w*",
-        rf"किसी को (?:मत|ना|भी मत) बता{DV}",
+        r"(?:don'?t|do not) tell (?:anyone|anybody|mom|dad|mum|my (?:mom|dad|mum|parents|family)|"
+        r"your (?:bank|family|kids|son|daughter|children))",
+        r"keep (?:this|it) (?:a )?secret", r"keep (?:this|it) between us", r"between you and me",
+        r"(?:don'?t|do not) (?:hang up|disconnect|end (?:the|this) call)", r"stay on the (?:line|phone|call)",
+        r"kisi ko (?:mat|na|bhi mat) bata\w*", r"call (?:mat|na) kaat\w*",
+        rf"किसी को (?:मत|ना|भी मत) बता{DV}", rf"(?:कॉल|फोन) (?:मत|ना) काट{DV}",
     ]),
     "KYC_ACCOUNT_BLOCK": (2, [
         r"\bKYC\b", r"account (?:will be |is |has been )?(?:blocked|suspended|frozen|closed|band)",
+        r"(?:account|card) (?:has been |was |is |will be )?(?:compromised|hacked|locked)",
+        r"suspicious (?:activity|charges?|transactions?)",
         r"SIM (?:card )?(?:will be )?(?:blocked|band|deactivated)", r"(?:खाता|अकाउंट) (?:बंद|ब्लॉक)", r"सिम बंद",
     ]),
     "PARCEL_COURIER": (2, [
         r"parcels?(?: in your name)?", r"\bcourier\b", r"\bFedEx\b", r"\bDHL\b", r"पार्सल", r"कूरियर",
     ]),
     "FAMILY_EMERGENCY": (2, [
-        r"\baccident\b", r"\bhospital\b", r"new number", r"naya number", r"\bmusibat\b",
+        r"\baccident\b", r"\bhospital\b", r"\bbail\b", r"car (?:crash|wreck)",
+        # why a cloned or impostor voice "sounds different"
+        r"(?:broke|broken) (?:my )?nose", r"\bsound(?:s|ing)? (?:a (?:bit|little) )?different\b",
+        r"new (?:number|phone|cell)", r"naya number", r"\bmusibat\b",
         r"एक्सीडेंट", r"अस्पताल", r"नया नंबर", r"मुसीबत",
     ]),
     "PRIZE_LOTTERY": (2, [
-        r"\blottery\b", r"you (?:have|'ve) won", r"\bprize\b", r"\bKBC\b", r"लॉटरी", r"इनाम",
+        r"\blottery\b", r"you (?:have|'ve) won", r"\bprize\b", r"\bsweepstakes\b", r"\bKBC\b", r"लॉटरी", r"इनाम",
     ]),
     "URGENCY": (1, [
-        r"\bimmediately\b", r"right now", r"\bturant\b", r"abhi ke abhi",
-        r"within (?:\d+|one|two|an?) (?:minutes?|hours?)", r"तुरंत", r"अभी के अभी",
+        r"\bimmediately\b", r"right now", r"right away", r"as soon as possible", r"\bASAP\b", r"\burgent(?:ly)?\b",
+        r"\bhurry\b", r"before (?:the )?(?:judge|court|hearing)", r"\bturant\b", r"abhi ke abhi",
+        r"(?:within|in the next) (?:\d+|one|two|few|an?) (?:minutes?|hours?)", r"तुरंत", r"अभी के अभी",
     ]),
 }
 
@@ -118,6 +140,12 @@ def scan(text: str) -> list[dict]:
                 hits.append({"category": category, "severity": severity, "evidence": evidence})
                 break
     return hits
+
+
+def is_duplicate(evidence: str, flags: list[dict]) -> bool:
+    """True if these words, or words containing them, are already evidence for a flag."""
+    key = evidence.lower()
+    return any(key in f["evidence"].lower() or f["evidence"].lower() in key for f in flags)
 
 
 def script_score(categories: set[str]) -> int:

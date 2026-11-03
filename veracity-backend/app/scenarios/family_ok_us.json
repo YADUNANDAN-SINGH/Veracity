@@ -1,0 +1,23 @@
+{
+  "title": "A real grandson asking for concert money",
+  "description": "The user's grandson calls from his own number to chat, then asks for $40 on PayPal as they had agreed. Low risk: the payment waits for the call to end, then goes through.",
+  "region": "US",
+  "order": 2,
+  "source": "scripted",
+  "caller_number": "+12025550172",
+  "lines": [
+    { "t": 3, "text": "Hey Grandma, it's Jake. How are you feeling today?" },
+    { "t": 10, "text": "I passed my driving test this morning, first try." },
+    { "t": 18, "text": "Mom says we're all coming over for dinner on Sunday." },
+    { "t": 26, "text": "Oh, and could you send me forty dollars on PayPal for the concert tickets, like we talked about?" },
+    { "t": 35, "text": "No rush at all. Love you, see you Sunday!" }
+  ],
+  "payment": {
+    "amount": "40.00",
+    "currency": "USD",
+    "recipient_name": "Jake (grandson)",
+    "contact_name": "Jake",
+    "contact_number": "+12025550172",
+    "note": "Concert tickets"
+  }
+}

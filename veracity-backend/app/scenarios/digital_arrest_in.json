@@ -1,0 +1,15 @@
+{
+  "title": "“Digital arrest” call from fake cyber police (India)",
+  "description": "A caller claiming to be from Mumbai Cyber Crime says a parcel in the user's name held drugs, tells them not to hang up or tell anyone, and demands a transfer to a “safe account”. Hinglish, scripted. No PayPal step: PayPal doesn't process domestic payments in India.",
+  "region": "IN",
+  "order": 3,
+  "source": "scripted",
+  "caller_number": null,
+  "lines": [
+    { "t": 6, "text": "Main Mumbai Cyber Crime se Inspector Sharma bol raha hoon." },
+    { "t": 16, "text": "A parcel in your name has drugs. You are under digital arrest." },
+    { "t": 26, "text": "Kisi ko mat batana. Do not disconnect this call." },
+    { "t": 36, "text": "To clear your name, transfer the money to a safe account right now." }
+  ],
+  "payment": null
+}

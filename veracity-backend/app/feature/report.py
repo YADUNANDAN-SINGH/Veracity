@@ -21,10 +21,37 @@ HIGH, MEDIUM = 70, 40
 
 TRANSCRIPT_LIMIT = 2000
 
-NEXT_STEPS = [
-    "Lost money? Call 1930 now and file a complaint at https://cybercrime.gov.in. Attach this file.",
-    "No money lost? Report the number on Chakshu (https://sancharsaathi.gov.in/sfc/) within 30 days of the call.",
+# What to do next, by the user's region (VERA_REGION); unknown regions get the generic advice
+NEXT_STEPS = {
+    "IN": [
+        "Lost money? Call 1930 now and file a complaint at https://cybercrime.gov.in. Attach this file.",
+        "No money lost? Report the number on Chakshu (https://sancharsaathi.gov.in/sfc/) within 30 days of the call.",
+    ],
+    "US": [
+        "Sent money? Call your bank or PayPal now to try to stop it, then report it at https://reportfraud.ftc.gov "
+        "and https://www.ic3.gov. Attach this file.",
+        "No money sent? Report the call at https://reportfraud.ftc.gov. If the caller said they were family, "
+        "call that person back on a number you have saved.",
+        "60 or older? The National Elder Fraud Hotline can help: 1-833-372-8311 (1-833-FRAUD-11).",
+    ],
+}
+GENERIC_NEXT_STEPS = [
+    "Sent money? Call your bank or payment app now to try to stop it, then report the scam to the police. "
+    "Attach this file.",
+    "If the caller said they were family, call that person back on a number you have saved.",
 ]
+REPORT_LINKS = {
+    "IN": [
+        {"label": "Call 1930", "href": "tel:1930"},
+        {"label": "cybercrime.gov.in", "href": "https://cybercrime.gov.in"},
+        {"label": "Chakshu", "href": "https://sancharsaathi.gov.in/sfc/"},
+    ],
+    "US": [
+        {"label": "ReportFraud.ftc.gov", "href": "https://reportfraud.ftc.gov"},
+        {"label": "ic3.gov (FBI)", "href": "https://www.ic3.gov"},
+        {"label": "Elder Fraud Hotline", "href": "tel:+18333728311"},
+    ],
+}
 DISCLAIMER = (
     "This report is evidence, not proof. The AI-voice % is a calibrated model estimate, "
     "and red flags are matched from the transcript, which can contain mistakes."
@@ -103,18 +130,27 @@ class Evidence(BaseModel):
     audio_sha256: str | None
 
 
+class ReportLink(BaseModel):
+    label: str
+    href: str
+
+
 class Report(BaseModel):
     schema_version: str
     report_id: str
     generated_at: datetime
     app_version: str
+    region: str
     call: CallInfo
     number: NumberSection | None
     voice: VoiceSection
     script: ScriptSection
     overall: Overall
     evidence: Evidence
+    # Protected Send payments made during the call, with their PayPal ids and outcome (filled in at the end)
+    payments: list[dict] = []
     next_steps: list[str]
+    report_links: list[ReportLink]
     disclaimer: str
 
 
@@ -137,21 +173,25 @@ def fuse(number_score: int | None, voice_peak: int, script_score: int) -> tuple[
     return score, risk_level(score)
 
 
-def top_reasons(number: NumberSection | None, voice_peak: int, script: ScriptSection, limit: int = 3) -> list[str]:
+def reasons_for(number_score: int | None, number_reasons: list[str], voice_peak: int, script_score: int,
+                limit: int = 3) -> list[str]:
     """Plain-language reasons, biggest contribution to the score first."""
     candidates: list[tuple[float, str]] = []
     if voice_peak >= 75:
         candidates.append((WEIGHTS["voice"] * voice_peak, f"Voice sounded synthetic (peak {voice_peak}%)"))
     elif voice_peak >= 40:
         candidates.append((WEIGHTS["voice"] * voice_peak, f"Voice may be synthetic (peak {voice_peak}%)"))
-    if script.script_score > 0:
-        candidates.append(
-            (WEIGHTS["script"] * script.script_score, f"Scam-script red flags (score {script.script_score})")
-        )
-    if number and number.rule_score > 0 and number.reasons:
-        candidates.append((WEIGHTS["number"] * number.rule_score, f"Number: {number.reasons[0]}"))
+    if script_score > 0:
+        candidates.append((WEIGHTS["script"] * script_score, f"Scam-script red flags (score {script_score})"))
+    if number_score and number_reasons:
+        candidates.append((WEIGHTS["number"] * number_score, f"Number: {number_reasons[0]}"))
     candidates.sort(key=lambda c: c[0], reverse=True)
     return [reason for _, reason in candidates[:limit]]
+
+
+def top_reasons(number: NumberSection | None, voice_peak: int, script: ScriptSection, limit: int = 3) -> list[str]:
+    return reasons_for(number.rule_score if number else None, number.reasons if number else [],
+                       voice_peak, script.script_score, limit)
 
 
 def build_report(
@@ -162,6 +202,7 @@ def build_report(
     ended_at: datetime,
     capture_method: str,
     audio_device: str | None = None,
+    region: str = "IN",
     number: dict | None,
     model_id: str,
     calibration_t: float | None,
@@ -211,11 +252,13 @@ def build_report(
     voice_peak = round(voice.max_p_ai * 100)
     score, level = fuse(number_section.rule_score if number_section else None, voice_peak, script_score)
 
+    region = region.upper()
     return Report(
         schema_version=SCHEMA_VERSION,
         report_id=report_id or uuid.uuid4().hex,
         generated_at=ended_at,
         app_version=APP_VERSION,
+        region=region,
         call=CallInfo(
             caller_number=caller_number,
             started_at=started_at,
@@ -229,6 +272,7 @@ def build_report(
         script=script,
         overall=Overall(risk_level=level, score=score, top_reasons=top_reasons(number_section, voice_peak, script)),
         evidence=Evidence(audio_saved=audio_sha256 is not None, audio_sha256=audio_sha256),
-        next_steps=NEXT_STEPS,
+        next_steps=NEXT_STEPS.get(region, GENERIC_NEXT_STEPS),
+        report_links=REPORT_LINKS.get(region, []),
         disclaimer=DISCLAIMER,
     )

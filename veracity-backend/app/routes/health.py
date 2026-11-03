@@ -15,7 +15,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
+from app.feature import payment_gate, paypal_client
+from app.feature.number_intelligence import DEFAULT_REGION
+
 router = APIRouter(prefix="/api", tags=["health"])
+
+# "judge": the hosted demo (no phone, no models, replayed calls); "local": the full Mac build
+MODE = "judge" if os.environ.get("VERA_MODE") == "judge" else "local"
 
 # The input Python records from; VERA_AUDIO_DEVICE overrides it for the
 # speakerphone fallback (e.g. "MacBook Air Microphone")
@@ -98,12 +104,23 @@ def _ollama_has(model: str) -> bool:
 
 @router.get("/health")
 def health(request: Request):
+    paypal = {
+        "configured": paypal_client.configured(),
+        "webhooks": bool(os.environ.get("PAYPAL_WEBHOOK_ID")),
+        "payouts": payment_gate.PAYOUTS_ENABLED,
+    }
+    if MODE == "judge":  # nothing to check on a server: no phone, no audio input, no local models
+        return {"status": "ok", "mode": MODE, "region": DEFAULT_REGION, "fake_mode": False, "paypal": paypal}
+
     adb_found = shutil.which("adb") is not None
     scrcpy_found = shutil.which("scrcpy") is not None
     audio_device, audio_sample_rate = _audio_input()
 
     return {
         "status": "ok",
+        "mode": MODE,
+        "region": DEFAULT_REGION,
+        "paypal": paypal,
         "fake_mode": os.environ.get("VERA_FAKE") == "1",
         "port": request.url.port or 8000,
         "adb_found": adb_found,

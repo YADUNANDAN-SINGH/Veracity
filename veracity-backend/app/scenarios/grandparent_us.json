@@ -1,0 +1,24 @@
+{
+  "title": "“Grandma, it’s me”: a grandparent scam",
+  "description": "A caller says he is the user's grandson, in jail after a car crash. He begs her not to tell his parents and asks for $2,400 bail on PayPal. Scripted transcript: the real scam rules run on it live.",
+  "region": "US",
+  "order": 1,
+  "source": "scripted",
+  "caller_number": "+12025550143",
+  "lines": [
+    { "t": 3, "text": "Grandma? Hi Grandma, it's me, it's Jake." },
+    { "t": 9, "text": "I know I sound different. I broke my nose, there was a car crash." },
+    { "t": 17, "text": "I'm in jail right now. They said I have to post bail before I see the judge tomorrow." },
+    { "t": 26, "text": "Please don't tell Mom and Dad, they'll freak out. Keep this between us, okay?" },
+    { "t": 35, "text": "The lawyer says it's $2,400. Can you send it on PayPal right now?" },
+    { "t": 44, "text": "Please hurry, Grandma. They only let me have this phone for a few minutes." }
+  ],
+  "payment": {
+    "amount": "2400.00",
+    "currency": "USD",
+    "recipient_name": "Jake (grandson)",
+    "contact_name": "Jake",
+    "contact_number": "+12025550172",
+    "note": "Bail money"
+  }
+}

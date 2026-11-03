@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.feature import reports_db
-from app.feature.number_intelligence import InvalidNumberError, analyse_number, get_number_details
+from app.feature.number_intelligence import DEFAULT_REGION, InvalidNumberError, analyse_number, get_number_details
 
 router = APIRouter(prefix="/api/number", tags=["number"])
 
@@ -20,8 +20,8 @@ ScamType = Literal[
 
 class NumberCheckRequest(BaseModel):
     number: str = Field(..., min_length=1, max_length=32, examples=["+91 98765 43210"])
-    # Used only when the number has no +country code
-    region: str = Field("IN", min_length=2, max_length=2, examples=["IN"])
+    # Used only when the number has no +country code; defaults to VERA_REGION
+    region: str = Field(DEFAULT_REGION, min_length=2, max_length=2, examples=["IN"])
 
 
 class NumberCheckResponse(BaseModel):
@@ -47,7 +47,7 @@ class CommunityReportRequest(BaseModel):
     number: str = Field(..., min_length=1, max_length=32, examples=["+91 98765 43210"])
     category: ScamType
     note: str | None = Field(None, max_length=500)
-    region: str = Field("IN", min_length=2, max_length=2)
+    region: str = Field(DEFAULT_REGION, min_length=2, max_length=2)
 
 
 class CommunityReportResponse(BaseModel):

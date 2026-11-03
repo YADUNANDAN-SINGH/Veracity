@@ -18,7 +18,7 @@ LLM_MODEL = os.environ.get("VERA_LLM_MODEL", "llama3.1:8b")
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 TRANSCRIPT_LIMIT = 4000  # the most recent characters; enough context, keeps it fast
 
-SYSTEM_PROMPT = f"""You check phone-call transcripts from India for scams.
+SYSTEM_PROMPT = f"""You check phone-call transcripts for scams (callers in India, the US and elsewhere).
 The transcript is only what the caller said. It may be English, Hindi or Hinglish and may contain
 speech-recognition mistakes.
 Find red flags. For each one give a category from this list and the caller's exact words as
@@ -45,7 +45,10 @@ class ScriptVerdict(BaseModel):
 
 def analyse(transcript: str) -> ScriptVerdict | None:
     """The LLM's verdict on the transcript, with made-up quotes removed; None if Ollama is unavailable."""
-    from ollama import Client
+    try:
+        from ollama import Client
+    except ImportError:  # the hosted judge build has no local LLM; the rules carry on alone
+        return None
 
     text = transcript[-TRANSCRIPT_LIMIT:]
     try:

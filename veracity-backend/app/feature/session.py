@@ -24,8 +24,8 @@ from app.feature.audio_capture import (
     AUDIO_DEVICE, CAPTURE_METHOD, TARGET_SR, LiveCapture, default_output_name, rms_dbfs, start_scrcpy,
     stop_scrcpy, to_mono_16k,
 )
-from app.feature.number_intelligence import InvalidNumberError, analyse_number
-from app.feature.report import build_report
+from app.feature.number_intelligence import DEFAULT_REGION, InvalidNumberError, analyse_number
+from app.feature.report import build_report, fuse, reasons_for
 
 log = logging.getLogger("veracity.session")
 
@@ -66,12 +66,16 @@ class Session:
         self.loop = loop
         self.started_at = datetime.now(timezone.utc).replace(microsecond=0)
         self.ended_at: datetime | None = None
+        # Written to the report; a replayed call (app/feature/replay.py) sets its own
+        self.capture_method = CAPTURE_METHOD
+        self.audio_device: str | None = AUDIO_DEVICE
+        self.region = DEFAULT_REGION
 
         # Published events; touched only on the event loop's thread
         self.history: list[dict] = []
         self.subscribers: list[asyncio.Queue] = []
 
-        self.capture = LiveCapture()
+        self.capture: LiveCapture | None = None  # opened in start()
         self.scrcpy = None
         self.smoother = voice.VerdictSmoother()
         self.windows: list[dict] = []  # every scored window, for the report
@@ -82,11 +86,14 @@ class Session:
         self.alerted: set[str] = set()
         self.recorded: list[np.ndarray] = []  # only if save_audio
 
+        self._number: dict | None = None
+        self._number_checked = False
         self._flag_lock = threading.Lock()
         self._stop = threading.Event()
         self._chunks: queue.Queue = queue.Queue()
         self._llm = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm")
         self._llm_job: Future | None = None
+        self._lines_heard = 0
         self._audio_thread = threading.Thread(target=self._run_audio, name="audio", daemon=True)
         self._text_thread = threading.Thread(target=self._run_transcriber, name="transcriber", daemon=True)
         self.report: dict | None = None
@@ -94,7 +101,8 @@ class Session:
     # ----- lifecycle -----
 
     def start(self) -> None:
-        """Blocking (starts scrcpy); call from a worker thread."""
+        """Blocking (starts scrcpy); call from a worker thread. AudioDeviceError if the input is missing."""
+        self.capture = LiveCapture()  # check the input before starting scrcpy, so a failure leaves nothing running
         self.scrcpy = start_scrcpy()
         self.capture.start()
         self._audio_thread.start()
@@ -119,11 +127,47 @@ class Session:
     def active(self) -> bool:
         return self.report is None
 
+    # ----- risk so far (the payment gate asks during the call) -----
+
+    def number_analysis(self) -> dict | None:
+        """analyse_number() for the caller, worked out once; None for a hidden or garbled caller ID."""
+        if not self._number_checked:
+            self._number_checked = True
+            try:
+                self._number = analyse_number(self.caller_number, self.region) if self.caller_number else None
+            except InvalidNumberError:
+                self._number = None
+        return self._number
+
+    def risk_snapshot(self) -> dict:
+        """Number, voice and script fused from what has been heard so far, the same way the report does it."""
+        number = self.number_analysis()
+        windows, flags = list(self.windows), list(self.flags)
+        voice_peak = round(max((w["p_ai"] for w in windows), default=0.0) * 100)
+        script = scam_rules.script_score(set(self.categories))
+        number_score = number["rule_score"] if number else None
+        score, level = fuse(number_score, voice_peak, script)
+        top = sorted(flags, key=lambda f: (-f["severity"], f["t"]))[:5]
+        return {
+            "session_id": self.id,
+            "active": self.active,
+            "score": score,
+            "level": level,
+            "reasons": reasons_for(number_score, (number or {}).get("rule_reasons", []), voice_peak, script),
+            "voice_state": self.smoother.state if windows else None,
+            "voice_peak": voice_peak,
+            "script_score": script,
+            "flags": [{k: f[k] for k in ("category", "severity", "evidence", "t")} for f in top],
+        }
+
     # ----- events -----
 
     def _publish(self, event: dict) -> None:
         """Thread-safe: hands the event to the event loop, which fans it out."""
-        self.loop.call_soon_threadsafe(self._deliver, event)
+        try:
+            self.loop.call_soon_threadsafe(self._deliver, event)
+        except RuntimeError:  # the server is shutting down and its loop is closed
+            log.debug("dropped %s event: event loop closed", event.get("type"))
 
     def _deliver(self, event: dict) -> None:
         self.history.append(event)
@@ -196,8 +240,12 @@ class Session:
             return
 
         p = round(voice.calibrate(detector.p_fake(window)), 4)
+        self._record_voice(t, p, len(window) / TARGET_SR)
+
+    def _record_voice(self, t: int, p: float, window_s: float = voice.WINDOW_S) -> None:
+        """One scored window: smooth it, keep it for the report, publish it, alert once on Likely AI."""
         vs = self.smoother.update(p)
-        self.windows.append({"t_start": round(max(0.0, t - len(window) / TARGET_SR), 1), "t_end": float(t), "p_ai": p})
+        self.windows.append({"t_start": round(max(0.0, t - window_s), 1), "t_end": float(t), "p_ai": p})
         self._publish({"type": "voice", "t": t, "p_ai": p, "smoothed": vs.smoothed, "state": vs.state, "speech": True})
         if vs.state == "LIKELY_AI" and "voice" not in self.alerted:
             self.alerted.add("voice")
@@ -206,7 +254,6 @@ class Session:
     # ----- transcriber thread -----
 
     def _run_transcriber(self) -> None:
-        done = 0
         while (item := self._chunks.get()) is not None:
             start_t, audio = item
             if rms_dbfs(audio) < voice.SILENCE_DBFS:
@@ -216,18 +263,20 @@ class Session:
             except Exception:
                 log.exception("transcription failed")
                 continue
-            if not text:
-                continue
-            t = round(start_t, 1)
-            self.transcript.append({"t": t, "text": text})
-            self._publish({"type": "transcript", "t": t, "text": text})
-            for hit in scam_rules.scan(text):
-                self._add_flag(hit["category"], hit["evidence"], t, "rule")
+            if text:
+                self._on_text(round(start_t, 1), text)
 
-            done += 1
-            if done % LLM_EVERY == 0 and not self._stop.is_set() and (self._llm_job is None or self._llm_job.done()):
-                full = " ".join(line["text"] for line in self.transcript)
-                self._llm_job = self._llm.submit(self._run_llm, full)
+    def _on_text(self, t: float, text: str) -> None:
+        """A line of the caller's speech: show it, run the rules, and every LLM_EVERY lines the LLM."""
+        self.transcript.append({"t": t, "text": text})
+        self._publish({"type": "transcript", "t": t, "text": text})
+        for hit in scam_rules.scan(text):
+            self._add_flag(hit["category"], hit["evidence"], t, "rule")
+
+        self._lines_heard += 1
+        if self._lines_heard % LLM_EVERY == 0 and not self._stop.is_set() and (self._llm_job is None or self._llm_job.done()):
+            full = " ".join(line["text"] for line in self.transcript)
+            self._llm_job = self._llm.submit(self._run_llm, full)
 
     def _run_llm(self, full_transcript: str) -> None:
         verdict = scam_llm.analyse(full_transcript)
@@ -246,8 +295,7 @@ class Session:
     def _add_flag(self, category: str, evidence: str, t: float, source: str) -> None:
         """Record a red flag; each quote counts once, and a new category updates the script score."""
         with self._flag_lock:
-            key = evidence.lower()
-            if any(key in f["evidence"].lower() or f["evidence"].lower() in key for f in self.flags):
+            if scam_rules.is_duplicate(evidence, self.flags):
                 return  # the same words can't be evidence twice (the LLM tried several labels for one line)
             if sum(f["category"] == category for f in self.flags) >= FLAGS_PER_CATEGORY:
                 return
@@ -271,7 +319,7 @@ class Session:
         number = None
         if self.caller_number:
             try:
-                number = analyse_number(self.caller_number)
+                number = analyse_number(self.caller_number, self.region)
             except InvalidNumberError:
                 pass  # e.g. a hidden or garbled caller ID; the report just has no number section
 
@@ -280,8 +328,9 @@ class Session:
             caller_number=self.caller_number,
             started_at=self.started_at,
             ended_at=self.ended_at,
-            capture_method=CAPTURE_METHOD,
-            audio_device=AUDIO_DEVICE,
+            capture_method=self.capture_method,
+            audio_device=self.audio_device,
+            region=self.region,
             number=number,
             model_id=voice.VOICE_MODEL,
             calibration_t=voice.CALIBRATION_T,
