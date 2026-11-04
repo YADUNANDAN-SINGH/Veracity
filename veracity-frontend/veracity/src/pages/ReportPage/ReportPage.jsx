@@ -18,6 +18,7 @@ import CommunityReport from '../../components/report/CommunityReport'
 import ReportJson from '../../components/report/ReportJson'
 import PaymentGate from '../../components/payment/PaymentGate'
 import { REPORT_LINKS, downloadReport } from '../../api/report'
+import { summarizePayment } from '../../api/payment'
 import { describeCategory } from '../../constants/scamCategories'
 import './ReportPage.css'
 
@@ -54,6 +55,9 @@ export default function ReportPage({ report, payments, onBack, onNewCall }) {
     severity: flag.severity ?? describeCategory(flag.category).severity,
   }))
   const callPayments = (payments?.payments ?? []).filter((p) => p.status !== 'CREATED')
+  // The report was saved when the call ended; file it with its payments as they are now,
+  // so a hold cancelled on this page says VOIDED in report.json too (as GET /api/report does)
+  const filed = payments?.payments?.length ? { ...report, payments: payments.payments.map(summarizePayment) } : report
 
   return (
     <main className="report-page">
@@ -68,7 +72,7 @@ export default function ReportPage({ report, payments, onBack, onNewCall }) {
             <span className="report-page__number">{report.call.caller_number || 'an unknown number'}</span>
           </h1>
         </div>
-        <Button variant="primary" icon="download" onClick={() => downloadReport(report)}>
+        <Button variant="primary" icon="download" onClick={() => downloadReport(filed)}>
           Download JSON
         </Button>
       </header>
@@ -160,13 +164,13 @@ export default function ReportPage({ report, payments, onBack, onNewCall }) {
       <Panel
         title="report.json"
         action={
-          <Button variant="ghost" size="sm" icon="download" onClick={() => downloadReport(report)}>
+          <Button variant="ghost" size="sm" icon="download" onClick={() => downloadReport(filed)}>
             Download
           </Button>
         }
         flush
       >
-        <ReportJson report={report} />
+        <ReportJson report={filed} />
       </Panel>
 
       <footer className="report-page__footer">

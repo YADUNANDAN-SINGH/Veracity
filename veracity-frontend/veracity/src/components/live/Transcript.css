@@ -34,8 +34,9 @@
 
 /* Evidence: underlined and tinted, so it reads without colour too */
 .transcript__evidence {
-  padding: 0 2px;
+  padding: 0 3px;
   border-bottom: 1.5px solid var(--risk-high-fill);
+  border-radius: 3px 3px 0 0;
   background: var(--risk-high-soft);
   color: inherit;
 }

@@ -2,9 +2,9 @@
 .live-page {
   display: grid;
   gap: var(--space-5);
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-8);
+  padding: var(--space-6) var(--space-5) var(--space-8);
 }
 
 .live-page__intro {
@@ -43,19 +43,19 @@
 /* Held payments sit under the banner, full width: the most important thing on screen */
 .live-page__gates {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .live-page__grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 2fr;
+  grid-template-columns: minmax(280px, 1fr) 2fr;
   align-items: start;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .live-page__col {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
   min-width: 0;
 }
 
@@ -101,7 +101,13 @@
 
 @media (max-width: 640px) {
   .live-page {
-    padding-top: var(--space-5);
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4) var(--space-7);
+  }
+  .live-page__grid,
+  .live-page__col,
+  .live-page__gates {
+    gap: var(--space-4);
   }
   .live-page__intro {
     flex-direction: column;

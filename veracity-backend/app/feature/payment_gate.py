@@ -28,6 +28,7 @@ from decimal import Decimal, InvalidOperation
 
 from app.feature import payments_db, scam_rules
 from app.feature.paypal_client import PayPalError, get_client
+from app.feature.report import top_flags
 
 log = logging.getLogger("veracity.gate")
 
@@ -143,7 +144,7 @@ def _with_gate(risk: dict | None) -> str | None:
 
 def risk_from_report(report: dict) -> dict:
     """The same shape as Session.risk_snapshot(), from a finished call's report."""
-    flags = sorted(report["script"]["red_flags"], key=lambda f: (-f["severity"], f["t"]))[:5]
+    flags = top_flags(report["script"]["red_flags"])
     return {
         "session_id": report["report_id"],
         "active": False,
@@ -488,6 +489,15 @@ def summary(payment_view: dict) -> dict:
     """The short form kept in the call's evidence report."""
     keys = ("payment_id", "status", "hold_reason", "amount", "currency", "recipient_name", "verification")
     return {**{k: payment_view[k] for k in keys}, "paypal": payment_view["paypal"]}
+
+
+def report_payments(session_id: str) -> list[dict]:
+    """A call's payments as they are now, in the report's short form.
+
+    The saved report has them as they were when the call ended; a hold cancelled
+    afterwards must say VOIDED there too. Read-only: no PayPal calls.
+    """
+    return [summary(view(p)) for p in payments_db.list_payments(session_id)]
 
 
 def _get(payment_id: str) -> dict:

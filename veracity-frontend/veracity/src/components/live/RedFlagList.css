@@ -30,8 +30,9 @@
 .red-flag--medium .red-flag__icon {
   color: var(--risk-medium);
 }
+/* Severity 1 is still a red flag, so it is grey rather than the green of "low risk" */
 .red-flag--low .red-flag__icon {
-  color: var(--risk-low);
+  color: var(--ink-muted);
 }
 
 .red-flag__body {
@@ -69,7 +70,7 @@
   background: var(--risk-medium-fill);
 }
 .red-flag--low .red-flag__severity i.is-on {
-  background: var(--risk-low-fill);
+  background: var(--ink-muted);
 }
 
 .red-flag__severity span {

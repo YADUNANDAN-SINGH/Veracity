@@ -11,15 +11,29 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: 52px;
+  min-height: 56px;
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--line);
 }
 
+.panel__header h2 {
+  font-size: 16px;
+  line-height: 24px;
+}
+
 .panel__body {
-  padding: var(--space-4) var(--space-5);
+  padding: 20px var(--space-5);
 }
 
 .panel__body--flush {
   padding: 0;
+}
+
+@media (max-width: 640px) {
+  .panel__header {
+    padding-inline: var(--space-4);
+  }
+  .panel__body:not(.panel__body--flush) {
+    padding: var(--space-4);
+  }
 }

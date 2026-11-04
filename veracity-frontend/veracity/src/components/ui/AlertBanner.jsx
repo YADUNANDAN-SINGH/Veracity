@@ -17,7 +17,7 @@ const TONE_ICON = {
 export default function AlertBanner({ tone = 'info', title, children }) {
   return (
     <div className={`alert alert--${tone}`} role={tone === 'danger' ? 'alert' : 'note'}>
-      <Icon name={TONE_ICON[tone]} size={16} className="alert__icon" />
+      <Icon name={TONE_ICON[tone]} size={18} className="alert__icon" />
       <div className="alert__content">
         {title && <p className="t-label">{title}</p>}
         {children && <div className="t-body-sm">{children}</div>}

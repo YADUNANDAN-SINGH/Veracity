@@ -1,6 +1,10 @@
 /*
- * Veracity design tokens (Design System & Front-end Spec v1, §2).
+ * Veracity design tokens (Design System & Front-end Spec v1, §2; v1.1 palette).
  * Every colour, size and radius in the app comes from here.
+ *
+ * v1.1: one deep-blue brand on cool grey paper, white cards, softer edges.
+ * Colour still goes on risk and nothing else: green → amber → red, and every
+ * risk state also carries an icon and words, so it never depends on colour alone.
  *
  * Light is the default. The dark set below applies when the OS is dark,
  * unless the user picked a theme (data-theme on <html>, see useTheme).
@@ -15,33 +19,33 @@
 
   /* Surfaces */
   --surface-000: #ffffff; /* panels, cards, inputs, app header */
-  --surface-100: #f6f5f1; /* page background */
-  --surface-200: #ecebe4; /* wells: table headers, code chips, meter tracks */
+  --surface-100: #f4f6f9; /* page background */
+  --surface-200: #edf0f5; /* wells: table headers, code chips, meter tracks */
   --surface-header: var(--surface-000); /* the app header */
-  --line: #d9d6cc; /* hairline dividers and panel borders */
-  --line-strong: #86837a; /* input and toggle borders, meter ticks */
+  --line: #e2e6ed; /* hairline dividers and panel borders */
+  --line-strong: #8b95a5; /* input and toggle borders, meter ticks (3:1 on white) */
 
   /* Text */
-  --ink: #1b2430;
-  --ink-muted: #535a64;
+  --ink: #101828;
+  --ink-muted: #556070;
 
-  /* Brand */
-  --brand: #0e5a60;
-  --brand-hover: #0a454a;
-  --brand-soft: #dcecea;
+  /* Brand: one deep blue for actions, focus and the logo tile */
+  --brand: #1d4ed8;
+  --brand-hover: #1e40af;
+  --brand-soft: #eaf0fd;
   --on-brand: #ffffff;
   --focus: var(--brand);
 
-  /* Risk: low (blue) → medium (amber) → high (orange-red) */
-  --risk-low: #1f5c94;
-  --risk-low-soft: #e3edf7;
-  --risk-low-fill: #2f74b5;
+  /* Risk: low (green) → medium (amber) → high (red) */
+  --risk-low: #12733a;
+  --risk-low-soft: #e7f5ec;
+  --risk-low-fill: #1f9d55;
   --risk-medium: #7d5200;
-  --risk-medium-soft: #fbf0d6;
-  --risk-medium-fill: #c98500;
-  --risk-high: #a8321c;
-  --risk-high-soft: #fbe6e1;
-  --risk-high-fill: #cf4a2c;
+  --risk-medium-soft: #fdf3dc;
+  --risk-medium-fill: #d08a00;
+  --risk-high: #b42318;
+  --risk-high-soft: #fdeeec;
+  --risk-high-fill: #d92d20;
   --live: var(--risk-high-fill);
 
   /* Voice timeline: a dark editing track, the waveform coloured by verdict */
@@ -51,7 +55,7 @@
   --track-readout: rgba(10, 14, 19, 0.85);
   --track-line: #3a4552;
   --track-text: #a9b2bd;
-  --wave-human: #8cc4ec; /* light blue */
+  --wave-human: #6fd39a; /* light green, as Likely human */
   --wave-uncertain: #e6a93a;
   --wave-ai: #ef5a3c;
   --wave-silent: #4c5866;
@@ -71,13 +75,15 @@
   --space-8: 64px;
 
   /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px; /* panels */
+  --radius-xl: 16px; /* the payment card */
   --radius-pill: 999px;
 
-  /* Depth: borders do the work; this only lifts a panel off the paper */
-  --shadow-panel: 0 1px 2px rgba(27, 36, 48, 0.06);
+  /* Depth: borders do the work; shadows only lift a card off the paper */
+  --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 16px rgba(16, 24, 40, 0.06);
 
   /* Layout */
   --header-height: 64px;
@@ -89,35 +95,35 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    /* GitHub dark: near-black canvas, blacker header, hairline borders */
-    --surface-000: #0d1117; /* panels and inputs: the canvas itself, edged by borders */
+    /* Near-black page, cards a step lighter, hairline borders */
+    --surface-000: #151b23; /* panels and inputs */
     --surface-100: #0d1117; /* page */
-    --surface-200: #161b22; /* wells: code chips, meter tracks, hovers */
+    --surface-200: #1e2530; /* wells: code chips, meter tracks, hovers */
     --surface-header: #010409;
-    --line: #30363d;
+    --line: #2a313c;
     --line-strong: #6e7681;
 
     --ink: #e6edf3;
     --ink-muted: #9198a1;
 
-    /* Brand teal, lifted so it reads on black */
-    --brand: #3fb9a8;
-    --brand-hover: #5fcfbf;
-    --brand-soft: #0f2623;
-    --on-brand: #010409;
+    /* Brand blue, lifted so it reads on black */
+    --brand: #6ea8fe;
+    --brand-hover: #8dbbff;
+    --brand-soft: #14243d;
+    --on-brand: #0b1220;
 
-    /* GitHub's accent, attention and danger hues */
-    --risk-low: #58a6ff;
-    --risk-low-soft: #0f1d31;
-    --risk-low-fill: #388bfd;
+    --risk-low: #3fb950;
+    --risk-low-soft: #0f2417;
+    --risk-low-fill: #2ea043;
     --risk-medium: #d29922;
-    --risk-medium-soft: #251f12;
+    --risk-medium-soft: #2a2210;
     --risk-medium-fill: #bb8009;
     --risk-high: #ff7b72;
-    --risk-high-soft: #2a1519;
+    --risk-high-soft: #2d1416;
     --risk-high-fill: #f85149;
 
     --shadow-panel: none; /* borders do all the work on black */
+    --shadow-raised: 0 8px 24px rgba(1, 4, 9, 0.5);
 
     --track: #010409;
     --track-deep: #000000;
@@ -129,35 +135,35 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* GitHub dark: near-black canvas, blacker header, hairline borders */
-  --surface-000: #0d1117; /* panels and inputs: the canvas itself, edged by borders */
+  /* Near-black page, cards a step lighter, hairline borders */
+  --surface-000: #151b23; /* panels and inputs */
   --surface-100: #0d1117; /* page */
-  --surface-200: #161b22; /* wells: code chips, meter tracks, hovers */
+  --surface-200: #1e2530; /* wells: code chips, meter tracks, hovers */
   --surface-header: #010409;
-  --line: #30363d;
+  --line: #2a313c;
   --line-strong: #6e7681;
 
   --ink: #e6edf3;
   --ink-muted: #9198a1;
 
-  /* Brand teal, lifted so it reads on black */
-  --brand: #3fb9a8;
-  --brand-hover: #5fcfbf;
-  --brand-soft: #0f2623;
-  --on-brand: #010409;
+  /* Brand blue, lifted so it reads on black */
+  --brand: #6ea8fe;
+  --brand-hover: #8dbbff;
+  --brand-soft: #14243d;
+  --on-brand: #0b1220;
 
-  /* GitHub's accent, attention and danger hues */
-  --risk-low: #58a6ff;
-  --risk-low-soft: #0f1d31;
-  --risk-low-fill: #388bfd;
+  --risk-low: #3fb950;
+  --risk-low-soft: #0f2417;
+  --risk-low-fill: #2ea043;
   --risk-medium: #d29922;
-  --risk-medium-soft: #251f12;
+  --risk-medium-soft: #2a2210;
   --risk-medium-fill: #bb8009;
   --risk-high: #ff7b72;
-  --risk-high-soft: #2a1519;
+  --risk-high-soft: #2d1416;
   --risk-high-fill: #f85149;
 
   --shadow-panel: none; /* borders do all the work on black */
+  --shadow-raised: 0 8px 24px rgba(1, 4, 9, 0.5);
 
   --track: #010409;
   --track-deep: #000000;

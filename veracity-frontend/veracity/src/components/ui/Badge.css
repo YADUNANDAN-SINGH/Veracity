@@ -2,10 +2,18 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* The status pill on a payment card */
+.badge--lg {
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  line-height: 16px;
 }
 
 .badge--low {

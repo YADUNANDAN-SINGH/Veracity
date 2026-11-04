@@ -1,9 +1,9 @@
 .alert {
   display: flex;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: 14px var(--space-4);
   border: 1px solid;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--ink);
 }
 
@@ -16,6 +16,12 @@
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+  overflow-wrap: anywhere; /* e.g. a URL in an error message */
+}
+
+.alert__content > .t-label {
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .alert--danger {
@@ -36,7 +42,7 @@
 
 .alert--info {
   background: var(--brand-soft);
-  border-color: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
 }
 .alert--info .alert__icon {
   color: var(--brand);

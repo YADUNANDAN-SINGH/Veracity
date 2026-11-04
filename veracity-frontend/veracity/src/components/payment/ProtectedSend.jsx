@@ -52,17 +52,17 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
           and ring them on the number you already have saved. Veracity will hold this payment until you do.
         </AlertBanner>
       )}
-      <p className="t-body-sm">
+      <p className="t-body-sm protected-send__intro">
         Asked for money on this call? Send it here instead. <strong>PayPal holds it</strong>, and Veracity
         releases it only if the call checks out.
       </p>
 
       <div className="protected-send__fields">
-        <label className="protected-send__field protected-send__field--amount">
+        <label className="protected-send__field">
           <span className="t-label">Amount</span>
           <span className="protected-send__money">
-            <input className="protected-send__input t-code" inputMode="decimal" value={form.amount} onChange={set('amount')} placeholder="0.00" />
-            <select className="protected-send__input" value={form.currency} onChange={set('currency')} aria-label="Currency">
+            <input className="protected-send__amount" inputMode="decimal" value={form.amount} onChange={set('amount')} placeholder="0.00" />
+            <select className="protected-send__currency" value={form.currency} onChange={set('currency')} aria-label="Currency">
               {(config.currencies ?? [config.currency]).map((c) => (
                 <option key={c}>{c}</option>
               ))}
@@ -86,7 +86,10 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
       </div>
 
       {problem ? (
-        <p className="t-body-sm muted protected-send__hint">{problem}</p>
+        <p className="t-body-sm muted protected-send__hint">
+          <Icon name="info" size={14} />
+          {problem}
+        </p>
       ) : (
         <PayPalProvider clientId={config.client_id} environment="sandbox" components={['paypal-payments']} pageType="checkout">
           <PayPalButton payments={payments} body={body} />

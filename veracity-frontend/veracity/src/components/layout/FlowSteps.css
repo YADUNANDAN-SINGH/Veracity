@@ -43,6 +43,7 @@
 
 .flow-steps__step--current {
   background: var(--brand-soft);
+  color: var(--brand);
   font-weight: 600;
 }
 .flow-steps__step--current .flow-steps__marker {

@@ -3,6 +3,7 @@
  * Never colour alone: every tone carries an icon and words.
  *
  * tone: 'low' | 'medium' | 'high' | 'neutral'
+ * size: 'md' | 'lg' (the status pill on a payment card)
  */
 import Icon from './Icon'
 import './Badge.css'
@@ -14,10 +15,10 @@ const TONE_ICON = {
   neutral: 'help-circle',
 }
 
-export default function Badge({ tone = 'neutral', icon, children }) {
+export default function Badge({ tone = 'neutral', icon, size = 'md', children }) {
   return (
-    <span className={`badge badge--${tone} t-label`}>
-      <Icon name={icon ?? TONE_ICON[tone]} size={12} />
+    <span className={`badge badge--${tone} badge--${size} t-label`}>
+      <Icon name={icon ?? TONE_ICON[tone]} size={size === 'lg' ? 14 : 12} />
       {children}
     </span>
   )

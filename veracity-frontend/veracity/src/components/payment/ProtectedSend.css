@@ -1,47 +1,123 @@
 .protected-send {
   display: grid;
-  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr); /* long words wrap instead of widening the column */
+  gap: 20px;
+}
+
+.protected-send__intro {
+  color: var(--ink-muted);
+}
+.protected-send__intro strong {
+  color: var(--ink);
+}
+
+/* Inputs have an intrinsic width; let them shrink to the column instead of widening it */
+.protected-send__fields,
+.protected-send__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .protected-send__fields {
-  display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .protected-send__field {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.protected-send__money {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.protected-send__money .protected-send__input:first-child {
-  flex: 1;
-  min-width: 0;
+  gap: 6px;
 }
 
 .protected-send__input {
-  min-height: 36px;
-  padding: var(--space-2) var(--space-3);
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   background: var(--surface-000);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .protected-send__input.t-code {
   font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.protected-send__input:hover,
+.protected-send__money:hover {
+  border-color: var(--ink-muted);
+}
+
+.protected-send__input:focus-visible {
+  border-color: var(--brand);
+}
+
+/* The amount: one control, big tabular figures, the currency as its suffix */
+.protected-send__money {
+  display: flex;
+  align-items: stretch;
+  min-height: 56px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+}
+
+.protected-send__money:focus-within {
+  border-color: var(--brand);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.protected-send__amount,
+.protected-send__currency {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.protected-send__amount:focus-visible,
+.protected-send__currency:focus-visible {
+  outline: none; /* the ring goes round the whole control */
+}
+
+.protected-send__amount {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 0 14px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.protected-send__amount::placeholder {
+  color: var(--line-strong);
+}
+
+.protected-send__currency {
+  flex: none;
+  padding: 0 var(--space-3);
+  border-left: 1px solid var(--line);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .protected-send__hint {
-  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  border: 1px dashed var(--line-strong);
   border-radius: var(--radius-md);
-  background: var(--surface-200);
+  background: var(--surface-100);
+}
+.protected-send__hint svg {
+  flex: none;
+  margin-top: 3px;
 }
 
 /* PayPal draws its own button; give it room and keep it above the fold */
@@ -51,6 +127,8 @@
 
 .protected-send__small {
   display: block;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 
 .protected-send__small svg {

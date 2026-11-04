@@ -29,14 +29,15 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 /* Light/dark switch: an icon button, quiet like "Offline" */
 .app-header__theme {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -56,27 +57,56 @@
   gap: 6px;
   padding: 2px var(--space-2);
   border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: var(--surface-200);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
+/*
+ * Phones: three rows, so nothing runs off the side.
+ *   logo ············ theme · call status
+ *   mode pill · Offline / Hosted demo
+ *   step progress
+ */
 @media (max-width: 640px) {
   .app-header {
-    grid-template-columns: auto auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
     height: auto;
     padding: var(--space-3) var(--space-4);
-    row-gap: var(--space-2);
   }
-  .app-header__steps {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-    overflow-x: auto;
+  .app-header > .logo {
+    margin-right: auto;
   }
   .app-header__meta {
-    justify-content: flex-end;
+    display: contents;
+  }
+  .app-header__theme {
+    order: 1;
+  }
+  .app-header .call-status {
+    order: 2;
+  }
+  /* Line break before the mode pills */
+  .app-header::after {
+    content: '';
+    order: 3;
+    flex-basis: 100%;
+    margin-top: calc(-1 * var(--space-2));
+  }
+  .app-header__sim,
+  .app-header__offline {
+    order: 4;
+  }
+  .app-header__steps {
+    order: 5;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
   }
 }

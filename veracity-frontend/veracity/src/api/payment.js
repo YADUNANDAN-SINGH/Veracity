@@ -87,3 +87,9 @@ export function describeStatus(payment) {
       return { tone: 'high', label: 'Failed', headline: 'PayPal declined this payment.' }
   }
 }
+
+/** The short form a report keeps of a payment: the same fields as payment_gate.summary() in the backend. */
+export function summarizePayment(payment) {
+  const { payment_id, status, hold_reason, amount, currency, recipient_name, verification, paypal } = payment
+  return { payment_id, status, hold_reason, amount, currency, recipient_name, verification, paypal }
+}

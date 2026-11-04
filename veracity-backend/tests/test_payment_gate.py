@@ -7,7 +7,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from app.feature import payment_gate, paypal_client
+from app.feature import payment_gate, paypal_client, reports_db
 from app.routes import session as session_routes
 from main import app
 from tests.fake_paypal import FakePayPal
@@ -202,6 +202,23 @@ def test_payment_during_a_call_waits_for_the_call_to_end(fake, monkeypatch):
     res = client.post(f"/api/payment/{pid}/verify", json={"outcome": "confirmed"})
     assert res.json()["status"] == "CAPTURED"
 
+
+
+def test_the_report_shows_a_payment_as_it_is_now(fake, monkeypatch):
+    call = start_call(monkeypatch, "HIGH", 100)
+    payment = pay(fake, session_id="call1")
+    pid = payment["payment_id"]
+    call._active = False
+    # The report is saved when the call ends, with the payment still held
+    reports_db.save_report({**call_report("call1", "HIGH", 100), "generated_at": "2026-11-04T10:00:00Z",
+                            "payments": [payment_gate.summary(payment)]})
+    assert client.get("/api/report/call1").json()["payments"][0]["status"] == "HELD"
+
+    client.post(f"/api/payment/{pid}/cancel")  # cancelled on the report page, after the call
+    now = payment_gate.summary(client.get(f"/api/payment/{pid}").json())
+    for url in ("/api/report/call1", "/api/report/call1?download=1"):
+        assert client.get(url).json()["payments"] == [now]
+    assert now["status"] == "VOIDED" and now["paypal"]["authorization_id"] == payment["paypal"]["authorization_id"]
 
 def test_low_risk_call_releases_the_payment_when_it_ends(fake, monkeypatch):
     call = start_call(monkeypatch, "LOW", 8)

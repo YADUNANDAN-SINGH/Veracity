@@ -25,7 +25,7 @@ from app.feature.audio_capture import (
     stop_scrcpy, to_mono_16k,
 )
 from app.feature.number_intelligence import DEFAULT_REGION, InvalidNumberError, analyse_number
-from app.feature.report import build_report, fuse, reasons_for
+from app.feature.report import build_report, fuse, reasons_for, top_flags
 
 log = logging.getLogger("veracity.session")
 
@@ -147,7 +147,7 @@ class Session:
         script = scam_rules.script_score(set(self.categories))
         number_score = number["rule_score"] if number else None
         score, level = fuse(number_score, voice_peak, script)
-        top = sorted(flags, key=lambda f: (-f["severity"], f["t"]))[:5]
+        top = top_flags(flags)
         return {
             "session_id": self.id,
             "active": self.active,

@@ -192,6 +192,21 @@ def reasons_for(number_score: int | None, number_reasons: list[str], voice_peak:
     return [reason for _, reason in candidates[:limit]]
 
 
+def top_flags(flags: list[dict], limit: int = 5) -> list[dict]:
+    """The flags a held payment quotes: most severe first, then earliest.
+
+    "It's me" is only severity 1, so it would be cut by the rest, yet it is the
+    reason to call the person back: the earliest IDENTITY_CLAIM always makes the
+    list, in place of the lowest-ranked flag if need be.
+    """
+    ranked = sorted(flags, key=lambda f: (-f["severity"], f["t"]))
+    top = ranked[:limit]
+    claim = next((f for f in ranked if f["category"] == "IDENTITY_CLAIM"), None)
+    if claim is not None and claim not in top and limit > 0:
+        top = [*top[:limit - 1], claim]
+    return top
+
+
 def top_reasons(number: NumberSection | None, voice_peak: int, script: ScriptSection, limit: int = 3) -> list[str]:
     return reasons_for(number.rule_score if number else None, number.reasons if number else [],
                        voice_peak, script.script_score, limit)
