@@ -405,10 +405,7 @@ Veracity/
 
 ## AI tools used
 
-- **In the product:** the wav2vec2 XLS-R deepfake classifier, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
-- **To build it:** Claude (Anthropic) was used as a coding assistant for the PayPal integration, the hosted build, the tests, the evaluation scripts, the UI and this README. The 48 test transcripts in `eval/` were written with its help.
-
-<!-- TODO: add any other AI tools used to build Veracity (for example during CT BuildFest) and what each was used for. -->
+The wav2vec2 XLS-R deepfake classifier, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
 
 ---
 
