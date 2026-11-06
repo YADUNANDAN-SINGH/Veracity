@@ -10,9 +10,9 @@
 ![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB)
 ![React](https://img.shields.io/badge/React-19-087ea4)
 
-<img src="docs/screenshots/cancelled-card.png" alt="A $2,400 payment to 'Jake (grandson)': approved in PayPal, held by Veracity, then cancelled. The money never left the account." width="760">
+<img src="docs/screenshots/calls/scam-4-cancelled-card.png" alt="A $3,000 payment to 'jhon': approved in PayPal, held by Veracity, then cancelled. The money never left the account." width="760">
 
-<sub>The "Grandma, it's me" sample call. The payer approved $2,400 in PayPal, Veracity held it, and after a callback ("Jake didn't ask") the authorization was voided.</sub>
+<sub>From a real phone call on 6 November 2026: a fake grandson asked for $3,000. The payer approved it in PayPal, Veracity held it, and after a callback the authorization was voided at PayPal. <a href="#tested-on-real-phone-calls">See both real-call tests</a>.</sub>
 
 <!-- TODO: replace RENDER_URL and VIDEO_URL with the real links -->
 **Hosted demo:** `RENDER_URL` · **Demo video:** `VIDEO_URL` · [How PayPal is used](#paypal-integration)
@@ -33,18 +33,20 @@
 
 1. Open the demo, select **Pick a sample call**, choose **"Grandma, it's me": a grandparent scam**, then **Start the call**.
 2. When "Jake" asks for $2,400, the **Protected Send** panel is already filled in. Pay with the PayPal button and log in as the sandbox buyer. PayPal authorizes the payment and Veracity **holds** it, quoting the caller's own words.
-3. Select **End call & build report**. The held card now asks you to call Jake back on the number saved in your phone.
+3. Select **End call & build report**. The held card asks you to call Jake back on the number saved in your phone.
 4. Select **Jake didn't ask: cancel**. Veracity voids the authorization at PayPal: *"Cancelled. The money never left your account."* Open **Details** to see each PayPal call with its HTTP status and `debug_id`.
 
 Then try **A real grandson asking for concert money**: the $40 is held while the call is on, and released (captured) when it ends.
+
+The hosted demo replays scripted calls through the real scam rules, payment gate and PayPal sandbox. The live phone build, with the AI models listening to a real call, is what the [real-call tests](#tested-on-real-phone-calls) below and the video show.
 
 ---
 
 ## The problem
 
 - In 2025 the FBI's IC3 counted **$893 million** lost to AI-related scams, including voice-cloned "family in distress" calls.
-- Americans aged 60 and over reported **$7.7 billion** stolen, about 60% more than in 2024 ([AARP on the FBI and FTC reports](https://www.aarp.org/money/scams-fraud/fbi-ftc-report-2025-losses.html)).
-- The money moves **during the call**, before anyone checks.
+- Americans aged 60 and over reported **$7.7 billion** in fraud losses ([AARP on the FBI and FTC reports](https://www.aarp.org/money/scams-fraud/fbi-ftc-report-2025-losses.html)).
+- The money moves **during the call**, before anyone checks. Phone apps can warn about a call and payment apps can warn about a payment, but nothing connects the two.
 
 ---
 
@@ -64,7 +66,7 @@ flowchart LR
     H -- "they didn't ask, or 72 h" --> X["PayPal: void"]
 ```
 
-**What happens to the money.** The payer approves in PayPal as usual, but the order's intent is **AUTHORIZE**: PayPal reserves the funds and nothing is sent. The gate then reads the call's risk at that moment ([`decide()` and `gate_level()`](veracity-backend/app/feature/payment_gate.py)), checking these rows from top to bottom:
+The payer approves in PayPal as usual, but the order's intent is **AUTHORIZE**: PayPal reserves the funds and nothing is sent. The payment gate then reads the call's risk at that moment ([`decide()` and `gate_level()`](veracity-backend/app/feature/payment_gate.py)), checking these rows from top to bottom:
 
 | When PayPal authorizes, the call… | The money |
 | --- | --- |
@@ -72,22 +74,114 @@ flowchart LR
 | is still going on | **Held** until the call ends, then decided again with the final report. If the call turns high risk meanwhile, the hold becomes *likely scam* |
 | is medium risk, shows some scam signs (script ≥ 40), or the caller says they're someone you know (or describes a family emergency) and asks for money | **Held until you call them back** on the number saved in your phone. "They confirmed" releases it, "they didn't ask" voids it |
 | is low risk | **Released**: the authorization is captured. A payment made mid-call is released when the call ends |
-| (nobody releases it within 72 hours) | **Voided** automatically, inside PayPal's 3-day honor period. A sweeper checks every held payment once a minute |
+| (nobody releases it within 72 hours) | **Voided** automatically, inside PayPal's 3-day honor period |
 
 "They confirmed" can't be pressed while the call is still on, since the caller could be the one saying it. Cancelling works at any time.
 
+---
+
+## Tested on real phone calls
+
+On 6 November 2026 we ran the **phone build** end to end on two real calls: an Android phone over USB, the caller's audio captured with scrcpy and BlackHole, the AI-voice model and Whisper running on the laptop, and a real payment in the **PayPal sandbox** each time (`VERA_REGION=US`, `VERA_LANGUAGE=en`).
+
+The same tester made both calls from the same phone, so the number and the voice were the same. **Only the words were different, and the money went the right way both times.** Phone numbers are blurred in every screenshot.
+
+| | Case 1: fake grandson, $3,000 | Case 2: real grandson, $50 |
+| --- | --- | --- |
+| What the caller said | A car crash, a police fine, a lawyer's fee, "do not tell anyone", "Do not disconnect" | Mom's birthday cake, "No rush… $50 only" |
+| Script | **92 / 100**: 6 red flags in 4 categories | **8 / 100**: 1 mild flag ("right now") |
+| Voice | *Likely human* (smoothed peak 16%) | *Likely human* (smoothed 10%) |
+| Number | An Indian mobile: international, +25 | The same number, +25 |
+| Call risk | **92 / 100, high** | **15 / 100, low** |
+| The money | Held, then **voided** after the callback | Held during the call, **captured** when it ended |
+| PayPal sandbox | create **200** → authorize **201** → void **200** | create **200** → authorize **201** → capture **201** |
+
+### Case 1: a fake grandson asks for $3,000
+
+The tester played the scammer and read a "grandson in trouble" script in English: he'd crashed his car, the police wanted a $2,000 fine "right now", his lawyer wanted $1,000 more, and nobody must know. While the call was still on, the payer sent $3,000 to "jhon" with Protected Send.
+
+| When | What Veracity did | PayPal sandbox |
+| --- | --- | --- |
+| During the call | The payer approved $3,000 in PayPal. Veracity **held** it because the call was still going; the words already showed scam signs (script 48 / 100), so the card marked it *medium risk for a payment* | `POST /v2/checkout/orders` **200**<br/>`POST /v2/checkout/orders/{id}/authorize` **201** |
+| When the call ended | "send me $3,000" and "Do not disconnect" came in. The script reached **92 / 100**, with authority and payment pressure in the same call, and the hold became a *likely scam* hold | Nothing: the money stays authorized, not sent |
+| After the callback | The real grandson hadn't asked, so the payer chose **jhon didn't ask: cancel**: *"Cancelled. The money never left your account."* | `POST /v2/payments/authorizations/{id}/void` **200** |
+
 <table>
   <tr>
-    <td width="55%"><img src="docs/screenshots/held-card.png" alt="Held as a likely scam: the caller's quotes with timestamps, and buttons to release or cancel after a callback"></td>
-    <td width="45%"><img src="docs/screenshots/released-card.png" alt="A $40 payment released to the real grandson after a low-risk call"></td>
+    <td width="50%"><img src="docs/screenshots/calls/scam-1-live-transcript.png" alt="Live call view: script score 92 with a strong scam signal, AI-voice likelihood 16% Likely human, and the transcript with 'do not tell anyone', 'right now', 'police' and 'lawyer' highlighted"></td>
+    <td width="50%"><img src="docs/screenshots/calls/scam-2-held-during-call.png" alt="$3,000 for jhon: approved in PayPal and held by Veracity while the call is in progress, medium risk, script 48 out of 100, with four quotes from the caller"></td>
   </tr>
   <tr>
-    <td><sub>Held as a likely scam. The card quotes the caller ("it's me", "send it on PayPal") with timestamps, and asks for a callback on the saved number.</sub></td>
-    <td><sub>The real grandson's $40: held while the call was on, released when it ended low risk.</sub></td>
+    <td><sub><b>1.</b> What Veracity heard. The caller's side is transcribed at each pause and the red flags are marked in place. The voice stayed <i>Likely human</i>: a real person was reading the script.</sub></td>
+    <td><sub><b>2.</b> The payer pays mid-call. PayPal authorizes the $3,000 and Veracity holds it until the call ends, quoting the caller's words.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/calls/scam-3-held-likely-scam.png" alt="The hold escalated to likely scam: the call is high risk 92 out of 100, quotes include 'send me $3,000' and 'Do not disconnect', with buttons to release or cancel after calling jhon back"></td>
+    <td><img src="docs/screenshots/calls/scam-5-report-scores.png" alt="Evidence report: high risk 92 out of 100, how the score is built, and six red flags with the exact words and times"></td>
+  </tr>
+  <tr>
+    <td><sub><b>3.</b> The call ends at 92 / 100. The hold becomes a likely-scam hold, and the payer is asked to call the person back on their saved number before anything is released.</sub></td>
+    <td><sub><b>4.</b> The evidence report: every score with its reason, and every red flag with the caller's exact words and the time they were said.</sub></td>
   </tr>
 </table>
 
-<sub>These three cards were captured from the hosted build running locally, with PayPal replaced by the tests' stand-in (`tests/fake_paypal.py`), so the order ids under Details are placeholders.</sub>
+<img src="docs/screenshots/calls/scam-6-paypal-api-calls.png" alt="PayPal sandbox API Calls log: create order 200, authorize order 5H041188PV742804H 201, void the authorization 200" width="900">
+
+<sub>PayPal's own record, from the sandbox API Calls log on developer.paypal.com: create the order (200), authorize it (201), void the authorization (200). Order <code>5H041188PV742804H</code> is the one under <b>Details</b> on Veracity's card.</sub>
+
+<details>
+<summary><b>All the evidence for this call</b>: the report, the voice verdict and report.json</summary>
+
+<br/>
+
+<img src="docs/screenshots/calls/scam-7-report-summary.png" alt="Evidence report header: high-risk call, the $3,000 payment cancelled with no money moved" width="760">
+
+<img src="docs/screenshots/calls/scam-7-report-voice.png" alt="The report's Voice card: final state Likely human, the highest single window, the number of windows scored, the model, and that no audio was saved" width="460">
+
+<img src="docs/screenshots/calls/scam-7-report-json.png" alt="The downloadable report.json: region US, call times, capture method scrcpy voice-call downlink through BlackHole 2ch, the number check" width="760">
+
+</details>
+
+### Case 2: the real grandson asks for $50
+
+The same tester called again as the real grandson: it was Mom's birthday, he was in the queue buying her a cake and was short on money. "So can you please send me $50 really quick? No rush… $50 only." The payer sent $50 with Protected Send during the call.
+
+| When | What Veracity did | PayPal sandbox |
+| --- | --- | --- |
+| During the call | The payer approved $50. Veracity **held** it because the call was still going, as it does with every payment made mid-call | `POST /v2/checkout/orders` **200**<br/>`POST /v2/checkout/orders/{id}/authorize` **201** |
+| When the call ended | Still low risk, **15 / 100**: one mild flag, no police, lawyer, secrecy or fee, and a *Likely human* voice. Veracity **released** the money with no callback needed | `POST /v2/payments/authorizations/{id}/capture` **201** |
+
+An international number on its own adds 25 points, which isn't enough to hold money. This is the false alarm Veracity has to avoid: a real family member asking for money shouldn't be stopped.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/calls/real-1-live-transcript.png" alt="Live call view: AI-voice likelihood 10% Likely human, script score 8 out of 100 with one urgency flag, and the transcript about buying Mom's birthday cake and asking for $50"></td>
+    <td width="50%"><img src="docs/screenshots/calls/real-2-released-card.png" alt="The $50 payment for jhon: approved in PayPal, held by Veracity until the call ended, then released and captured"><br/><br/><img src="docs/screenshots/calls/real-3-report-scores.png" alt="Evidence report: low risk 15 out of 100 and how the score is built"></td>
+  </tr>
+  <tr>
+    <td><sub><b>1.</b> What Veracity heard: a birthday cake and "No rush". Script 8 / 100, voice <i>Likely human</i>.</sub></td>
+    <td><sub><b>2.</b> The call ended low risk (15 / 100), so PayPal captured the $50: <i>"Released to jhon."</i></sub></td>
+  </tr>
+</table>
+
+<img src="docs/screenshots/calls/real-4-paypal-api-calls.png" alt="PayPal sandbox API Calls log: create order 200, authorize order 3YU72626J94684843 201, capture the authorization 201" width="900">
+
+<sub>PayPal's record of this payment: create the order (200), authorize it (201), capture the authorization (201). Order <code>3YU72626J94684843</code> is the one under <b>Details</b> on Veracity's card.</sub>
+
+<details>
+<summary><b>All the evidence for this call</b>: the report, the voice verdict and report.json</summary>
+
+<br/>
+
+<img src="docs/screenshots/calls/real-5-report-summary.png" alt="Evidence report header: low-risk call, the $50 payment released and captured" width="760">
+
+<img src="docs/screenshots/calls/real-5-report-voice.png" alt="The report's Voice card: final state Likely human, the highest single window, the number of windows scored, the model, and that no audio was saved" width="460">
+
+<img src="docs/screenshots/calls/real-5-report-json.png" alt="The downloadable report.json: region US, call times, capture method scrcpy voice-call downlink through BlackHole 2ch, the number check" width="760">
+
+</details>
+
+<sub>About the voice numbers: the payment card shows the smoothed voice score that the risk score uses. The report's Voice card and its <i>How the score is built</i> table show the highest single 4-second window (23% and 20% on these calls), which is why that table can add up to slightly more than the final score.</sub>
 
 ---
 
@@ -154,9 +248,11 @@ sequenceDiagram
 
 **The hosted demo replays scripted calls, so the models run only in the phone build.** The demo has no phone and loads no models: sample calls go through the same scam rules, risk fusion, payment gate and real PayPal sandbox. The dashboard's first screen says so ("Needs the phone build"), and the held card says "Voice not scored on this call".
 
-<img src="docs/screenshots/live-call.png" alt="Phone build, real call: voice Likely human at 13%, script score 82 with a strong scam signal, Hindi transcript with highlighted evidence" width="900">
+**Cloned voices haven't been tested yet.** We weren't able to produce a consented AI clone of the tester's voice for this submission, so every real call above used a real human voice, and the voice model correctly said *Likely human* each time. In both calls the **words** decided where the money went. [`eval/voice_eval.py`](eval/voice_eval.py) is ready to measure the model on cloned recordings, and the results will be added here.
 
-<sub>A real test call in the phone build (31 October 2026, before the UI refresh; the number is blurred). A person read a Hindi "digital arrest" script: the voice stayed <i>Likely human</i>, and the rules caught the script word for word.</sub>
+<img src="docs/screenshots/live-call.png" alt="Phone build, real call: voice Likely human, script score 82 with a strong scam signal, Hindi transcript with highlighted evidence" width="900">
+
+<sub>Veracity also reads Hindi and Hinglish scripts (<code>VERA_LANGUAGE=hi</code>). A real test call on 31 October 2026, before the UI refresh: a person read a Hindi "digital arrest" script, the voice stayed <i>Likely human</i>, and the rules caught the script word for word. The number is blurred.</sub>
 
 ---
 
@@ -164,17 +260,13 @@ sequenceDiagram
 
 | What | Result | Source |
 | --- | --- | --- |
-| Scam rules on 48 written test calls (24 scam, 24 ordinary) | Live alert (script ≥ 80): **6 / 24** scams, **0 / 24** ordinary calls.<br/>Some scam signs (script ≥ 40): **21 / 24** scams, **0 / 24** ordinary calls. | [`eval/results.md`](eval/results.md), from `python eval/run_rules_eval.py` |
-| The payment gate on the same 48 calls | **21 / 24** scams held (6 as a likely scam, 15 for a callback), **0 / 24** ordinary calls held | The ≥ 40 and ≥ 80 lines of [`eval/results.md`](eval/results.md); running `decide()` on each call gives the same counts |
+| Real phone calls with PayPal payments (6 Nov 2026) | Fake grandson, $3,000: **92 / 100**, held, then voided (authorize **201** → void **200**).<br/>Real grandson, $50: **15 / 100**, captured when the call ended (authorize **201** → capture **201**). | [Tested on real phone calls](#tested-on-real-phone-calls), with PayPal's API Calls logs |
+| Real phone call in Hindi (31 Oct 2026) | "Digital arrest" script read by a person: voice *Likely human*, script **82 / 100**, scam alert fired | The screenshot in [AI](#ai) |
+| Scam rules on 48 written test calls (24 scam, 24 ordinary) | Live alert (script ≥ 80): **6 / 24** scams, **0 / 24** ordinary calls.<br/>Some scam signs (script ≥ 40), which hold a payment: **21 / 24** scams, **0 / 24** ordinary calls. | [`eval/results.md`](eval/results.md), from `python eval/run_rules_eval.py` |
 | Automated tests | **100 passing**, with no phone, models or PayPal account (PayPal is replaced by [`tests/fake_paypal.py`](veracity-backend/tests/fake_paypal.py)) | `cd veracity-backend && python -m pytest -q` |
-| Real PayPal sandbox runs (4 November 2026) | "Grandma, it's me": authorize **201** → void **200**.<br/>Real grandson: authorize **201** → capture **201**. | The payments' audit trails, which record PayPal's status code and `debug_id` for every call |
-| Real phone call (31 October 2026) | Hindi "digital arrest" script read by a person: final voice verdict *Likely human* (76 windows scored), 4 red flags, script **82 / 100**, scam alert fired | The saved evidence report, and the screenshot above |
-| Voice model on cloned voices | **Not measured yet.** [`eval/voice_eval.py`](eval/voice_eval.py) is ready; results will be added. | — |
+| Voice model on cloned voices | **Not measured yet.** No consented clone was available for this submission. | [`eval/voice_eval.py`](eval/voice_eval.py) is ready |
 
-<!-- TODO: add a screenshot of the sandbox API Calls log (developer.paypal.com) showing the authorize, void and capture calls, e.g.
-<img src="docs/screenshots/paypal-api-calls.png" alt="PayPal sandbox API Calls log" width="900"> -->
-
-**About the 48 test calls:** they are short transcripts **written for this test, with AI help**, not recordings of real calls. They cover US English, Indian English, Hinglish and Hindi, and include ordinary calls that use the same words as scams (a real bank's fraud check, a delivery driver, a friend asking for $20). The rules were tuned on similar phrasing, so real-world recall will be lower, and on a live call Whisper's mistakes come first.
+**About the 48 test calls:** they are short transcripts **written for this test, with AI help**, not recordings. They cover US English, Indian English, Hinglish and Hindi, and include ordinary calls that use the same words as scams (a real bank's fraud check, a delivery driver, a friend asking for $20). The rules were tuned on similar phrasing, so real-world recall will be lower, and on a live call Whisper's mistakes come first.
 
 ---
 
@@ -236,6 +328,7 @@ python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo
 ollama pull llama3.1:8b                      # optional
 
 cp .env.example .env                         # PayPal sandbox values: docs/PAYPAL_SETUP.md
+echo "VERA_LANGUAGE=en" >> .env                # English calls (the default, hi, is for Hindi)
 uvicorn main:app --reload --port 8000 --env-file .env
 ```
 
@@ -348,6 +441,8 @@ Interactive docs are at <http://localhost:8000/docs> while the backend runs.
 
 ## Architecture and repo layout
 
+## Architecture and repo layout
+
 The backend keeps web code in `routes/` and logic in `feature/`, so every feature is tested without a server. The dashboard goes `api/` → `hooks/` → `pages/` → `components/`.
 
 ```text
@@ -379,17 +474,19 @@ Veracity/
 
 ### Privacy
 
+### Privacy
+
 - The call's audio is analysed in memory on the laptop and **isn't saved** unless the user turns on *Save call audio*; then the report stores the file's SHA-256.
 - **PayPal gets the payment, never the call:** the amount, the currency, a description with the recipient's name, and the payment's and call's ids. No audio, transcript or scores.
 - The models run on the laptop. The only outside service is PayPal's.
 
 ### Limitations
 
-- **The voice model is unproven on cloned voices.** It hasn't been measured on them yet.
+- **The voice model is unproven on cloned voices.** It hasn't been measured on them yet (see [AI](#ai)).
 - **Money must go through Protected Send.** Veracity can't pause a payment made in the PayPal app or anywhere else.
 - **Gift cards, wires, crypto and cash** can only be warned about during the call; the report says where to report it.
 - **Sandbox only**, with test money.
-- **The scam-rule evaluation is small and written**, not recorded (see [Results](#results-whats-measured-and-what-isnt)).
+- **Small evidence so far:** two real calls with payments, one Hindi call, and 48 written test calls.
 - **Not proof.** *Likely AI* is a model estimate meant to warn, and every report says so. Veracity checks the caller ID the network shows, and can't unmask a spoofed number.
 - **Hardware.** The phone build needs a laptop and a USB cable, and call-audio support varies by phone.
 
@@ -405,7 +502,9 @@ Veracity/
 
 ## AI tools used
 
-The wav2vec2 XLS-R deepfake classifier, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
+- **In the product:** the wav2vec2 XLS-R deepfake classifier, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
+<!-- TODO: list the AI assistants you used to build Veracity (for example as a coding assistant) and what they helped with; the hackathon asks for this -->
+- **To build it:** `AI_ASSISTANTS_USED`
 
 ---
 
