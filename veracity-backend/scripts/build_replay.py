@@ -63,8 +63,8 @@ def voice_windows(x: np.ndarray, detector) -> list[dict]:
     out = []
     for second in range(1, len(x) // TARGET_SR + 1):
         window = x[max(0, second * TARGET_SR - win):second * TARGET_SR]
-        if len(window) < TARGET_SR or rms_dbfs(window) < voice.SILENCE_DBFS:
-            continue  # a pause: the replay keeps the verdict and draws a gap, like a live call
+        if not voice.scorable(window):
+            continue  # the call's first seconds, or a pause: the replay keeps the verdict and draws a gap, like a live call
         out.append({"t": second, "p_ai": round(voice.calibrate(detector.p_fake(window)), 4)})
     return out
 

@@ -192,7 +192,7 @@ function buildReport({ callerNumber, number, startedAt, endedAt, windows, voiceP
       reasons: number.rule_reasons ?? [],
     },
     voice: {
-      model_id: 'Gustking/wav2vec2-large-xlsr-deepfake-audio-classification',
+      model_id: 'lab260/spectra_0',
       windows,
       max_p_ai: voicePeak,
       final_state: finalState,

@@ -265,7 +265,7 @@ function VoiceFacts({ report }) {
   const voice = report.voice ?? {}
   const state = VOICE_STATES[voice.final_state]
   const rows = [
-    { label: 'Final state', value: state ? <Badge tone={state.tone}>{state.label}</Badge> : 'Not scored' },
+    { label: 'Call verdict', value: state ? <Badge tone={state.tone}>{state.label}</Badge> : 'Not scored' },
     { label: 'Peak', value: `${Math.round((voice.max_p_ai ?? 0) * 100)}%`, mono: true },
     { label: 'Windows scored', value: voice.windows?.length ?? 0, mono: true },
     { label: 'Model', value: voice.model_id ?? '–', mono: true },

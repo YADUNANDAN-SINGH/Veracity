@@ -14,7 +14,7 @@ exactly as in a live call. Each file is `<id>.json`, where `<id>` is lowercase l
   "caller_number": "+12025550143",// fictional 555-01xx numbers only; null for a hidden caller ID
   "lines": [ { "t": 3, "text": "What the caller says at 3 s" } ],
   "voice": {                      // only for "recorded": the real model's output on that recording
-    "model_id": "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification",
+    "model_id": "lab260/spectra_0",
     "recording_sha256": "…",
     "windows": [ { "t": 4, "p_ai": 0.91 } ],   // one calibrated score per second of speech
     "levels": [ { "t": 0.1, "dbfs": -38.5 } ]  // input level every 0.1 s

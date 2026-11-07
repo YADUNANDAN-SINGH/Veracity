@@ -48,6 +48,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
   }, [status, start, callerNumber, saveAudio, number, scenarioId])
 
   const heard = live.series.some((point) => !point.gap)
+  const aiSince = live.series.find((point) => point.state === 'LIKELY_AI')?.t ?? null
   const noVoiceScore = live.replay && !live.replay.voice_scored
   const decided = payments.payments.filter((p) => p.status !== 'CREATED')
 
@@ -122,7 +123,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
               </p>
             ) : (
               <div className="live-page__voice">
-                <ScoreMeter kind="voice" voice={live.voice} heard={heard} />
+                <ScoreMeter kind="voice" voice={live.voice} heard={heard} aiSince={aiSince} />
                 <VoiceTimeline levels={live.levels} series={live.series} live={status === 'live'} elapsed={live.elapsed} />
               </div>
             )}
@@ -190,21 +191,40 @@ function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, numb
   }
 }
 
-/** At most one banner: a live alert beats everything else. */
+/* Scam alerts, in the order the banner names them, and how it names each when there is more than one */
+const SCAM_ALERTS = ['voice', 'script']
+const ALERT_REASON = {
+  voice: 'The voice sounds AI-generated.',
+  script: 'The words match a known scam script.',
+}
+
+/** At most one banner: a scam alert beats everything else, and names every reason heard so far. */
 function Banner({ live }) {
-  // A setup problem, not a scam warning; it goes away once any sound arrives
-  if (live.alert?.kind === 'audio') {
-    if (live.status === 'live' && !live.levels.some((l) => l.dbfs > -100)) {
-      return (
-        <AlertBanner tone="caution" title="No call audio">
-          {live.alert.message}
-        </AlertBanner>
-      )
-    }
-  } else if (live.alert) {
+  const scam = SCAM_ALERTS.map((kind) => live.alerts[kind]).filter(Boolean)
+  if (scam.length === 1) {
     return (
       <AlertBanner tone="danger" title="Don’t share an OTP or send money.">
-        {live.alert.message}
+        {scam[0].message}
+      </AlertBanner>
+    )
+  }
+  if (scam.length > 1) {
+    return (
+      <AlertBanner tone="danger" title="Don’t share an OTP or send money.">
+        <ul className="live-page__alert-reasons">
+          {scam.map((alert) => (
+            <li key={alert.kind}>{ALERT_REASON[alert.kind]}</li>
+          ))}
+        </ul>
+        Hang up, then call back on a number you have saved.
+      </AlertBanner>
+    )
+  }
+  // A setup problem, not a scam warning; it goes away once any sound arrives
+  if (live.alerts.audio && live.status === 'live' && !live.levels.some((l) => l.dbfs > -100)) {
+    return (
+      <AlertBanner tone="caution" title="No call audio">
+        {live.alerts.audio.message}
       </AlertBanner>
     )
   }

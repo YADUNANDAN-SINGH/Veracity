@@ -21,8 +21,8 @@ import numpy as np
 
 from app.feature import reports_db, scam_llm, scam_rules, transcriber, voice
 from app.feature.audio_capture import (
-    AUDIO_DEVICE, CAPTURE_METHOD, TARGET_SR, LiveCapture, default_output_name, rms_dbfs, start_scrcpy,
-    stop_scrcpy, to_mono_16k,
+    AUDIO_DEVICE, CAPTURE_METHOD, TARGET_SR, LiveCapture, StreamResampler, default_output_name, rms_dbfs,
+    start_scrcpy, stop_scrcpy,
 )
 from app.feature.number_intelligence import DEFAULT_REGION, InvalidNumberError, analyse_number
 from app.feature.report import build_report, fuse, reasons_for, top_flags
@@ -146,7 +146,7 @@ class Session:
         voice_peak = round(voice.smoothed_peak([w["p_ai"] for w in windows]) * 100)
         script = scam_rules.script_score(set(self.categories))
         number_score = number["rule_score"] if number else None
-        score, level = fuse(number_score, voice_peak, script)
+        score, level = fuse(number_score, voice_peak, script, self.smoother.verdict if windows else None)
         top = top_flags(flags)
         return {
             "session_id": self.id,
@@ -154,7 +154,7 @@ class Session:
             "score": score,
             "level": level,
             "reasons": reasons_for(number_score, (number or {}).get("rule_reasons", []), voice_peak, script),
-            "voice_state": self.smoother.state if windows else None,
+            "voice_state": self.smoother.verdict if windows else None,
             "voice_peak": voice_peak,
             "script_score": script,
             "categories": sorted(self.categories),
@@ -186,7 +186,7 @@ class Session:
     # ----- audio thread -----
 
     def _run_audio(self) -> None:
-        sr = self.capture.sample_rate
+        resample = StreamResampler(self.capture.sample_rate)  # one stream, not block by block
         window = np.zeros(0, dtype=np.float32)
         chunk: list[np.ndarray] = []
         chunk_start = 0.0
@@ -199,7 +199,7 @@ class Session:
                 block = self.capture.read(timeout=0.5)
                 if block is None:
                     continue
-                x = to_mono_16k(block, sr)
+                x = resample(block)
                 samples += len(x)
                 blocks += 1
                 t = round(samples / TARGET_SR, 1)
@@ -234,7 +234,7 @@ class Session:
 
     def _score_voice(self, t: int, window: np.ndarray) -> None:
         detector = voice.detector_if_ready()
-        speech = len(window) >= TARGET_SR and rms_dbfs(window) >= voice.SILENCE_DBFS
+        speech = voice.scorable(window)  # 3 s of the call, and not silence
         if not speech or detector is None:
             vs = self.smoother.update(None)
             self._publish({"type": "voice", "t": t, "p_ai": None, "smoothed": vs.smoothed, "state": vs.state, "speech": False})
@@ -337,7 +337,7 @@ class Session:
             calibration_t=voice.CALIBRATION_T,
             threshold=voice.T_AI,
             windows=self.windows,
-            final_state=self.smoother.state,
+            final_state=self.smoother.verdict,
             red_flags=self.flags,
             script_score=scam_rules.script_score(self.categories),
             scam_type=self.scam_type,

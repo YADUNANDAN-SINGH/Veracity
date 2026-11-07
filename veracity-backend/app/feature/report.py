@@ -161,8 +161,13 @@ def risk_level(score: int) -> RiskLevel:
     return "HIGH" if score >= HIGH else "MEDIUM" if score >= MEDIUM else "LOW"
 
 
-def fuse(number_score: int | None, voice_peak: int, script_score: int) -> tuple[int, RiskLevel]:
-    """Weighted score, raised to any single signal that is strong enough on its own."""
+def fuse(number_score: int | None, voice_peak: int, script_score: int,
+         voice_verdict: VoiceState | None = None) -> tuple[int, RiskLevel]:
+    """Weighted score, raised to any single signal that is strong enough on its own.
+
+    A voice the smoother has confirmed as Likely AI is one of them: the payment gate
+    already holds such a call as a likely scam, so its risk is never shown as low.
+    """
     score = round(
         WEIGHTS["number"] * (number_score or 0)
         + WEIGHTS["voice"] * voice_peak
@@ -170,6 +175,8 @@ def fuse(number_score: int | None, voice_peak: int, script_score: int) -> tuple[
     )
     if voice_peak >= VOICE_ALONE:
         score = max(score, voice_peak)
+    if voice_verdict == "LIKELY_AI":
+        score = max(score, voice_peak, HIGH)
     if script_score >= SCRIPT_ALONE:
         score = max(score, script_score)
     score = min(100, score)
@@ -269,7 +276,8 @@ def build_report(
     )
 
     voice_peak = round(voice.smoothed_peak * 100)
-    score, level = fuse(number_section.rule_score if number_section else None, voice_peak, script_score)
+    score, level = fuse(number_section.rule_score if number_section else None, voice_peak, script_score,
+                        voice.final_state)
 
     region = region.upper()
     return Report(

@@ -49,7 +49,7 @@ def test_a_recording_becomes_a_scenario(tmp_path):
     assert v["recording_sha256"] == hashlib.sha256(wav.read_bytes()).hexdigest()
     assert len(v["levels"]) == 170 and v["levels"][0] == {"t": 0.1, "dbfs": -120.0}
     seconds = [w["t"] for w in v["windows"]]
-    assert 1 not in seconds and seconds[0] == 2 and seconds[-1] == 17  # silence isn't scored
+    assert seconds[0] == 3 and seconds[-1] == 17  # scored from the call's third second, as a live call is
     assert {w["p_ai"] for w in v["windows"]} == {0.95}
 
 

@@ -4,7 +4,7 @@
 
 **Hears scam calls as they happen. If the caller asks for money, PayPal holds it until the call checks out.**
 
-![Tests](https://img.shields.io/badge/tests-100%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-114%20passing-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![PayPal](https://img.shields.io/badge/PayPal-Orders%20v2%20%C2%B7%20Payments%20v2-1d4ed8)
 ![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB)
@@ -44,7 +44,7 @@ The hosted demo replays scripted calls through the real scam rules, payment gate
 
 ## The problem
 
-- In 2025 the FBI's IC3 counted **$893 million** lost to AI-related scams, including voice-cloned "family in distress" calls.
+- In 2025 the FBI's IC3 counted **$893 million** lost to AI-related scams, including voice-cloned "family in distress" calls ([FBI](https://www.fbi.gov/news/press-releases/cryptocurrency-and-ai-scams-bilk-americans-of-billions)).
 - Americans aged 60 and over reported **$7.7 billion** in fraud losses ([AARP on the FBI and FTC reports](https://www.aarp.org/money/scams-fraud/fbi-ftc-report-2025-losses.html)).
 - The money moves **during the call**, before anyone checks. Phone apps can warn about a call and payment apps can warn about a payment, but nothing connects the two.
 
@@ -90,7 +90,7 @@ The same tester made both calls from the same phone, so the number and the voice
 | --- | --- | --- |
 | What the caller said | A car crash, a police fine, a lawyer's fee, "do not tell anyone", "Do not disconnect" | Mom's birthday cake, "No rush… $50 only" |
 | Script | **92 / 100**: 6 red flags in 4 categories | **8 / 100**: 1 mild flag ("right now") |
-| Voice | *Likely human* (smoothed peak 16%) | *Likely human* (smoothed 10%) |
+| Voice | *Likely human* (smoothed peak 16%) | *Likely human* (smoothed peak 15%) |
 | Number | An Indian mobile: international, +25 | The same number, +25 |
 | Call risk | **92 / 100, high** | **15 / 100, low** |
 | The money | Held, then **voided** after the callback | Held during the call, **captured** when it ended |
@@ -181,7 +181,7 @@ An international number on its own adds 25 points, which isn't enough to hold mo
 
 </details>
 
-<sub>About the voice numbers: the payment card shows the smoothed voice score that the risk score uses. The report's Voice card and its <i>How the score is built</i> table show the highest single 4-second window (23% and 20% on these calls), which is why that table can add up to slightly more than the final score.</sub>
+<sub>About the voice numbers: the payment card shows the smoothed voice score that the risk score uses. The report's Voice card and its <i>How the score is built</i> table show the highest single 4-second window (23% and 20% on these calls), which is why that table can add up to slightly more than the final score. These two calls were scored by the voice model of the time, a wav2vec2 classifier, since replaced: see [AI](#ai).</sub>
 
 ---
 
@@ -240,7 +240,7 @@ sequenceDiagram
 
 | Model | Job | Where it runs |
 | --- | --- | --- |
-| [wav2vec2 XLS-R deepfake classifier](https://huggingface.co/Gustking/wav2vec2-large-xlsr-deepfake-audio-classification) | Scores the last 4 s of the caller's voice every second for how likely it is AI-generated; three windows in a row are needed for *Likely AI* | Phone build, on the laptop |
+| [Spectra-0](https://huggingface.co/lab260/spectra_0), an XLS-R anti-spoofing network | Scores the last 4 s of the caller's voice every second for how likely it is AI-generated; three windows in a row are needed for *Likely AI*, and the call then stays flagged | Phone build, on the laptop |
 | Whisper large-v3-turbo, through [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | Transcribes the caller at each pause, in Hindi or English | Phone build, on the laptop |
 | Llama 3.1 8B, through [Ollama](https://ollama.com/) (optional) | Reads the transcript for scam tactics the rules miss; a flag is kept only if its quote is really in one transcript line | Phone build, on the laptop |
 | Scam rules (plain code, 12 categories) | Flags scam phrases in English, Hinglish and Hindi with the exact words and time, and scores the script 0 to 100 | Both builds |
@@ -248,7 +248,7 @@ sequenceDiagram
 
 **The hosted demo replays scripted calls, so the models run only in the phone build.** The demo has no phone and loads no models: sample calls go through the same scam rules, risk fusion, payment gate and real PayPal sandbox. The dashboard's first screen says so ("Needs the phone build"), and the held card says "Voice not scored on this call".
 
-**Cloned voices haven't been tested yet.** We weren't able to produce a consented AI clone of the tester's voice for this submission, so every real call above used a real human voice, and the voice model correctly said *Likely human* each time. In both calls the **words** decided where the money went. [`eval/voice_eval.py`](eval/voice_eval.py) is ready to measure the model on cloned recordings, and the results will be added here.
+**AI voices, measured.** On 7 November the tester played the demo video's narration, speech generated by Google Veo, into a call, and the first voice model said *Likely human* throughout. It missed most current generators, and the live pipeline was also resampling the call block by block, which put a click every 0.1 s into what the model heard. Both are fixed. On 40 minutes of AI speech (Veo, ElevenLabs, an AI podcast, macOS voices) and 81 minutes of real people (phone calls in six locales, read Hindi, Tamil and English, audiobooks), each as recorded and through simulated narrowband and wideband calls, Spectra-0 turned **85% of AI calls** *Likely AI* (the old model: 39%) and **1.1% of real people's calls** (the old model flagged up to 60% of the audiobooks). The 2-minute demo narration now turns *Likely AI* 16–75 s into the call. **The hard case is a clip played from a speaker across a room**: the reverberation hides it, and only 19% of AI calls are caught that way. Everything, with the limits: [`eval/voice_results.md`](eval/voice_results.md).
 
 <img src="docs/screenshots/live-call.png" alt="Phone build, real call: voice Likely human, script score 82 with a strong scam signal, Hindi transcript with highlighted evidence" width="900">
 
@@ -263,8 +263,8 @@ sequenceDiagram
 | Real phone calls with PayPal payments (6 Nov 2026) | Fake grandson, $3,000: **92 / 100**, held, then voided (authorize **201** → void **200**).<br/>Real grandson, $50: **15 / 100**, captured when the call ended (authorize **201** → capture **201**). | [Tested on real phone calls](#tested-on-real-phone-calls), with PayPal's API Calls logs |
 | Real phone call in Hindi (31 Oct 2026) | "Digital arrest" script read by a person: voice *Likely human*, script **82 / 100**, scam alert fired | The screenshot in [AI](#ai) |
 | Scam rules on 48 written test calls (24 scam, 24 ordinary) | Live alert (script ≥ 80): **6 / 24** scams, **0 / 24** ordinary calls.<br/>Some scam signs (script ≥ 40), which hold a payment: **21 / 24** scams, **0 / 24** ordinary calls. | [`eval/results.md`](eval/results.md), from `python eval/run_rules_eval.py` |
-| Automated tests | **100 passing**, with no phone, models or PayPal account (PayPal is replaced by [`tests/fake_paypal.py`](veracity-backend/tests/fake_paypal.py)) | `cd veracity-backend && python -m pytest -q` |
-| Voice model on cloned voices | **Not measured yet.** No consented clone was available for this submission. | [`eval/voice_eval.py`](eval/voice_eval.py) is ready |
+| Automated tests | **114 passing**, with no phone, models or PayPal account (PayPal is replaced by [`tests/fake_paypal.py`](veracity-backend/tests/fake_paypal.py)) | `cd veracity-backend && python -m pytest -q` |
+| AI-voice model on 40 min of AI speech and 81 min of real people, through simulated calls | **85%** of AI calls turned *Likely AI*, **1.1%** of real people's calls; a clip played from a speaker across a room: **19%** | [`eval/voice_results.md`](eval/voice_results.md), measured with [`eval/voice_eval.py`](eval/voice_eval.py)'s channels |
 
 **About the 48 test calls:** they are short transcripts **written for this test, with AI help**, not recordings. They cover US English, Indian English, Hinglish and Hindi, and include ordinary calls that use the same words as scams (a real bank's fraud check, a delivery driver, a friend asking for $20). The rules were tuned on similar phrasing, so real-world recall will be lower, and on a live call Whisper's mistakes come first.
 
@@ -277,7 +277,7 @@ sequenceDiagram
 | A live-call detector: Android over USB, scrcpy and BlackHole | **Protected Send**: Orders v2 (intent AUTHORIZE), Payments v2 capture and void, verified webhooks, optional Payouts, the JS SDK v6 button |
 | Number check, the AI-voice model, Whisper, 11 scam-rule categories (Indian scripts), the local LLM | **The payment gate**: hold rules, callbacks, cooling-off, escalation, 72-hour auto-void, reconciling with PayPal, audit trail |
 | The JSON evidence report | US scam scripts and the "it's me" identity claim (12th category); US reporting (FTC, IC3, Elder Fraud Hotline) |
-| 13 tests | Replayed sample calls and the hosted build (Dockerfile, `render.yaml`); the 48-call evaluation and `voice_eval.py`; 100 tests; the MIT license; the redesigned payment card |
+| 13 tests | Replayed sample calls and the hosted build (Dockerfile, `render.yaml`); the 48-call evaluation and `voice_eval.py`; the AI-voice evaluation; 114 tests; the MIT license; the redesigned payment card |
 
 Everything PayPal was built for this hackathon. Every commit after `3b7f1298` (31 October 2026) is hackathon work.
 
@@ -323,12 +323,12 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt -r requirements-ml.txt
 
 # Download the models once; after this the call analysis works offline
-hf download Gustking/wav2vec2-large-xlsr-deepfake-audio-classification
+hf download lab260/spectra_0 model.safetensors --revision b3fb6d5c9d8ce069996f100cbe10117fd74165f3
 python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')"
 ollama pull llama3.1:8b                      # optional
 
 cp .env.example .env                         # PayPal sandbox values: docs/PAYPAL_SETUP.md
-echo "VERA_LANGUAGE=en" >> .env                # English calls (the default, hi, is for Hindi)
+echo "VERA_LANGUAGE=en" >> .env              # English calls (the default, hi, is for Hindi)
 uvicorn main:app --reload --port 8000 --env-file .env
 ```
 
@@ -378,7 +378,7 @@ Android doesn't let ordinary apps record calls. scrcpy runs its capture code on 
 | `VERA_COOL_OFF_MIN` | `15` | How long a likely-scam payment still waits after a confirmed callback |
 | `VERA_AUDIO_DEVICE` | `BlackHole 2ch` | Input device to record from |
 | `VERA_AUDIO_SOURCE` | `voice-call-downlink` | scrcpy audio source; `voice-call` mixes both sides |
-| `VERA_VOICE_MODEL` | `Gustking/wav2vec2-large-xlsr-deepfake-audio-classification` | Hugging Face model for the AI-voice score |
+| `VERA_VOICE_MODEL` | `lab260/spectra_0` | Model for the AI-voice score; any Hugging Face audio-classification model also works |
 | `VERA_VOICE_T`, `VERA_T_AI`, `VERA_T_UNCERTAIN` | `1.0`, `0.75`, `0.40` | Calibration temperature, and the *Likely AI* and *Uncertain* thresholds |
 | `VERA_WHISPER_MODEL`, `VERA_WHISPER_THREADS` | `large-v3-turbo`, up to 8 | Whisper size (use `small` on a slower Mac) and CPU threads |
 | `VERA_LANGUAGE` | `hi` | `hi`, `en`, or `auto` |
@@ -441,8 +441,6 @@ Interactive docs are at <http://localhost:8000/docs> while the backend runs.
 
 ## Architecture and repo layout
 
-## Architecture and repo layout
-
 The backend keeps web code in `routes/` and logic in `feature/`, so every feature is tested without a server. The dashboard goes `api/` → `hooks/` → `pages/` → `components/`.
 
 ```text
@@ -452,7 +450,8 @@ Veracity/
 ├── eval/
 │   ├── transcripts.jsonl              48 written test calls: 24 scam, 24 ordinary
 │   ├── run_rules_eval.py              → eval/results.md
-│   └── voice_eval.py                  the voice model on recordings → voice_results.md
+│   ├── voice_eval.py                  the voice model on recordings, through phone codecs and a speaker
+│   └── voice_results.md               the AI-voice evaluation: what failed, what changed, how well it works
 ├── veracity-backend/                  Python · FastAPI
 │   ├── main.py                        app, routers, the held-payment sweeper; serves the dashboard
 │   ├── app/feature/
@@ -461,9 +460,9 @@ Veracity/
 │   │   ├── scam_rules.py              12 categories, US and Indian scripts, Hindi-tolerant matching
 │   │   ├── report.py                  risk fusion, evidence report, next steps per region
 │   │   ├── session.py · replay.py     a live call, or a sample call, through the same pipeline
-│   │   └── voice.py · transcriber.py · scam_llm.py   the three models (phone build)
+│   │   └── voice.py · spectra0.py · transcriber.py · scam_llm.py   the three models (phone build)
 │   ├── app/scenarios/                 the sample calls the hosted build replays
-│   └── tests/                         100 tests; fake_paypal.py stands in for PayPal
+│   └── tests/                         114 tests; fake_paypal.py stands in for PayPal
 └── veracity-frontend/veracity/        React 19 · Vite · PayPal JS SDK v6
     └── src/components/payment/        ProtectedSend.jsx (the PayPal button), PaymentGate.jsx (the card)
 ```
@@ -474,15 +473,13 @@ Veracity/
 
 ### Privacy
 
-### Privacy
-
 - The call's audio is analysed in memory on the laptop and **isn't saved** unless the user turns on *Save call audio*; then the report stores the file's SHA-256.
 - **PayPal gets the payment, never the call:** the amount, the currency, a description with the recipient's name, and the payment's and call's ids. No audio, transcript or scores.
 - The models run on the laptop. The only outside service is PayPal's.
 
 ### Limitations
 
-- **The voice model is unproven on cloned voices.** It hasn't been measured on them yet (see [AI](#ai)).
+- **A cloned voice played from a speaker across a room is mostly missed** (19% caught), and clean studio-style voiceovers are the hardest generator measured. The measurements use simulated phone channels; see [`eval/voice_results.md`](eval/voice_results.md).
 - **Money must go through Protected Send.** Veracity can't pause a payment made in the PayPal app or anywhere else.
 - **Gift cards, wires, crypto and cash** can only be warned about during the call; the report says where to report it.
 - **Sandbox only**, with test money.
@@ -494,7 +491,7 @@ Veracity/
 
 ## What's next
 
-- Measure the voice model on consented cloned-voice recordings with `eval/voice_eval.py`, and calibrate it on real phone audio.
+- Measure the voice model on real phone-line recordings of a consented clone (Save audio on) with `eval/voice_eval.py`, and add speaker-playback (replay) detection.
 - Offer the call verdict as a risk signal that PayPal's own send flow could consult, instead of a separate checkout.
 - Run without the laptop and cable, through an on-device or operator integration.
 
@@ -502,7 +499,7 @@ Veracity/
 
 ## AI tools used
 
-- **In the product:** the wav2vec2 XLS-R deepfake classifier, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
+- **In the product:** the Spectra-0 anti-spoofing model, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
 <!-- TODO: list the AI assistants you used to build Veracity (for example as a coding assistant) and what they helped with; the hackathon asks for this -->
 - **To build it:** `AI_ASSISTANTS_USED`
 

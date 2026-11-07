@@ -8,6 +8,7 @@
 import Badge from '../ui/Badge'
 import Meter from './Meter'
 import { describeCategory } from '../../constants/scamCategories'
+import { formatClock } from '../../utils/formatTime'
 import './ScoreMeter.css'
 
 const VOICE_STATES = {
@@ -16,19 +17,24 @@ const VOICE_STATES = {
   LIKELY_AI: { tone: 'high', label: 'Likely AI' },
 }
 
-export default function ScoreMeter({ kind, voice, heard, score, flags = [] }) {
-  return kind === 'voice' ? <VoiceMeter voice={voice} heard={heard} /> : <ScriptMeter score={score} flags={flags} />
+export default function ScoreMeter({ kind, voice, heard, aiSince, score, flags = [] }) {
+  return kind === 'voice' ? <VoiceMeter voice={voice} heard={heard} aiSince={aiSince} /> : <ScriptMeter score={score} flags={flags} />
 }
 
-/** heard: has any window with speech been scored yet? */
-function VoiceMeter({ voice, heard }) {
+/**
+ * heard:   has any window with speech been scored yet?
+ * aiSince: seconds into the call when the voice first turned Likely AI, or null
+ */
+function VoiceMeter({ voice, heard, aiSince = null }) {
   const state = heard ? VOICE_STATES[voice?.state] : null
   const value = state ? Math.round(voice.smoothed * 100) : null
   const caption = !state
     ? 'Starts when the caller speaks.'
     : voice.state === 'LIKELY_AI'
       ? 'Turned Likely AI after 3 windows in a row ≥ 75% · one score per second'
-      : 'Smoothed over recent windows · one score per second'
+      : aiSince !== null
+        ? `An AI voice was heard from ${formatClock(aiSince)}, so the call stays flagged`
+        : 'Smoothed over recent windows · one score per second'
 
   return (
     <div className="score-meter">

@@ -18,6 +18,7 @@ export default function RiskSummary({ report }) {
   const level = LEVELS[overall.risk_level] ?? LEVELS.LOW
   const parts = buildParts(report)
   const weighted = Math.round(parts.reduce((sum, p) => sum + p.points, 0))
+  const note = overrideNote(parts, overall.score, weighted, report.voice?.final_state)
 
   return (
     <div className="risk-summary">
@@ -60,9 +61,7 @@ export default function RiskSummary({ report }) {
             </tr>
           </tbody>
         </table>
-        {overrideNote(parts, overall.score, weighted) && (
-          <p className="t-body-sm muted">{overrideNote(parts, overall.score, weighted)}</p>
-        )}
+        {note && <p className="t-body-sm muted">{note}</p>}
         {parts[0].value === null && (
           <p className="t-body-sm muted">The number has no rule score yet, so it adds nothing.</p>
         )}
@@ -84,11 +83,12 @@ function buildParts(report) {
   ]
 }
 
-/** Voice ≥ 85 or script ≥ 80 is enough on its own: say why the score is above the weighted sum. */
-function overrideNote(parts, score, weighted) {
+/** Voice ≥ 85, a Likely AI voice or script ≥ 80 is enough on its own: say why the score is above the weighted sum. */
+function overrideNote(parts, score, weighted, voiceVerdict) {
   if (score <= weighted) return null
   const [, voice, script] = parts
   if (script.value >= 80 && script.value === score) return 'Script score ≥ 80 is enough on its own, so the score is raised to it.'
   if (voice.value >= 85 && voice.value === score) return 'Voice peak ≥ 85 is enough on its own, so the score is raised to it.'
+  if (voiceVerdict === 'LIKELY_AI') return 'The voice was Likely AI, which is high risk on its own, so the score is raised to at least 70.'
   return 'One signal was strong enough on its own, so the score is raised to it.'
 }

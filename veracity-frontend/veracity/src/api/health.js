@@ -13,7 +13,7 @@
  *   "audio_device": "BlackHole 2ch",    // null if not found
  *   "audio_sample_rate": 48000,
  *   "models": {
- *     "voice":   { "id": "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification", "ready": true },
+ *     "voice":   { "id": "lab260/spectra_0", "ready": true },
  *     "whisper": { "id": "large-v3-turbo", "ready": true },
  *     "llm":     { "id": "llama3.1:8b", "ready": false }
  *   }
@@ -31,7 +31,7 @@ export const FIX_COMMANDS = {
   adb: 'brew install --cask android-platform-tools',
   scrcpy: 'brew install scrcpy',
   audio: 'brew install blackhole-2ch',
-  voice: "python -c \"from transformers import pipeline; pipeline('audio-classification', model='Gustking/wav2vec2-large-xlsr-deepfake-audio-classification')\"",
+  voice: 'hf download lab260/spectra_0 model.safetensors --revision b3fb6d5c9d8ce069996f100cbe10117fd74165f3',
   whisper: "python -c \"from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')\"",
   llm: 'ollama pull llama3.1:8b',
   simulation: 'VERA_FAKE=1 uvicorn main:app --port 8000',
@@ -75,7 +75,7 @@ export function buildChecks(health, { loading, error }) {
 
   const models = health.models ?? {}
   const modelNames = [
-    models.voice && 'wav2vec2 voice model',
+    models.voice && 'Spectra-0 voice model',
     models.whisper && `Whisper ${models.whisper.id ?? ''}`.trim(),
     models.llm?.id,
   ].filter(Boolean)

@@ -27,7 +27,7 @@ MODE = "judge" if os.environ.get("VERA_MODE") == "judge" else "local"
 # speakerphone fallback (e.g. "MacBook Air Microphone")
 AUDIO_DEVICE = os.environ.get("VERA_AUDIO_DEVICE", "BlackHole 2ch")
 
-VOICE_MODEL = os.environ.get("VERA_VOICE_MODEL", "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification")  # same default as app/feature/voice.py
+VOICE_MODEL = os.environ.get("VERA_VOICE_MODEL", "lab260/spectra_0")  # same default as app/feature/voice.py
 WHISPER_SIZE = os.environ.get("VERA_WHISPER_MODEL", "large-v3-turbo")  # same default as app/feature/transcriber.py
 # Where faster-whisper downloads each size from
 WHISPER_REPOS = {"large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo"}

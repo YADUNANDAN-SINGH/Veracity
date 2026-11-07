@@ -32,7 +32,7 @@ const INITIAL = {
   transcript: [],
   flags: [],
   scriptScore: null,
-  alert: null,
+  alerts: {}, // the latest alert of each kind: { voice?, script?, audio? }
   report: null,
   streamLost: false,
 }
@@ -83,8 +83,8 @@ function applyEvent(state, event) {
       return { ...state, elapsed, flags: [...state.flags, event] }
     case 'script':
       return { ...state, scriptScore: event.score }
-    case 'alert':
-      return { ...state, alert: event }
+    case 'alert': // kept by kind, so a later script alert doesn't hide the AI-voice one
+      return { ...state, alerts: { ...state.alerts, [event.kind]: event } }
     case 'report':
       return { ...state, report: event.report }
     case 'ended':

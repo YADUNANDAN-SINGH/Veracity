@@ -35,7 +35,7 @@ def make_report(number="+919876543210", p_ai=0.97, script_score=100):
         calibration_t=1.0,
         threshold=0.75,
         windows=[{"t_start": 0.0, "t_end": 4.0, "p_ai": 0.2}, {"t_start": 29.0, "t_end": 33.0, "p_ai": p_ai}],
-        final_state="LIKELY_AI",
+        final_state="UNCERTAIN",  # what the smoother makes of these two windows: one spike isn't three in a row
         red_flags=[{
             "category": "THREAT_ARREST", "severity": 3, "t": 8.0, "source": "rule",
             "evidence": "digital arrest",
@@ -77,6 +77,13 @@ def test_one_strong_signal_is_enough():
     assert fuse(0, 90, 0) == (90, "HIGH")
     assert fuse(0, 0, 80) == (80, "HIGH")
     assert fuse(0, 84, 79) == (61, "MEDIUM")  # neither is strong enough alone
+
+
+def test_a_likely_ai_verdict_is_high_risk_on_its_own():
+    # 3 windows in a row ≥ 0.75 can leave the smoothed peak under 85
+    assert fuse(0, 83, 0, "LIKELY_AI") == (83, "HIGH")
+    assert fuse(0, 66, 0, "LIKELY_AI") == (70, "HIGH")
+    assert fuse(0, 83, 0, "UNCERTAIN") == (33, "LOW")  # not confirmed: weighted as before
 
 
 # --- report ---

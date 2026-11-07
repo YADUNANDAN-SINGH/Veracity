@@ -36,10 +36,51 @@ class AudioDeviceError(RuntimeError):
 
 
 def to_mono_16k(block: np.ndarray, sr: int) -> np.ndarray:
-    """(frames, channels) float32 at `sr` → mono float32 at 16 kHz (48 kHz is exactly 1:3)."""
+    """(frames, channels) float32 at `sr` → mono float32 at 16 kHz (48 kHz is exactly 1:3).
+
+    For a whole recording. A live stream needs StreamResampler: resampling each block
+    on its own pads it with zeros, which clicks at every block edge.
+    """
     x = block.mean(axis=1) if block.ndim == 2 else block
     g = math.gcd(sr, TARGET_SR)
     return resample_poly(x, TARGET_SR // g, sr // g).astype(np.float32)
+
+
+class StreamResampler:
+    """Blocks at `sr` → mono 16 kHz, the same as resampling the whole stream at once.
+
+    Each block is resampled with the real samples around it: the end of the previous
+    block before it, and a few milliseconds held back from this one after it (they come
+    out with the next block). Resampled one block at a time, every 0.1 s edge got a
+    click 27 times the usual error, and the AI-voice model stopped hearing a cloned
+    voice it caught on the same audio resampled in one go (3% of windows against 37%).
+    """
+
+    def __init__(self, sr: int):
+        g = math.gcd(sr, TARGET_SR)
+        self.up, self.down = TARGET_SR // g, sr // g
+        # Context on each side, in input samples: more than the filter's half-length
+        # (10 * max(up, down) at the upsampled rate) and a whole number of `down`, so
+        # every piece starts on the output grid
+        self.pad = self.down * math.ceil((10 * max(self.up, self.down) / self.up + 8) / self.down)
+        self._before = np.zeros(self.pad, dtype=np.float32)  # what a one-go resample sees before the start
+        self._pending = np.zeros(0, dtype=np.float32)
+
+    def __call__(self, block: np.ndarray) -> np.ndarray:
+        x = (block.mean(axis=1) if block.ndim == 2 else block).astype(np.float32)
+        if self.up == self.down:
+            return x
+        self._pending = np.concatenate([self._pending, x])
+        n = (len(self._pending) - self.pad) // self.down * self.down  # input we can finish now
+        if n <= 0:
+            return np.zeros(0, dtype=np.float32)
+        ext = np.concatenate([self._before, self._pending[:n + self.pad]])
+        y = resample_poly(ext, self.up, self.down)
+        start = self.pad * self.up // self.down
+        out = y[start:start + n * self.up // self.down]
+        self._before = ext[n:n + self.pad]
+        self._pending = self._pending[n:]
+        return out.astype(np.float32)
 
 
 def rms_dbfs(x: np.ndarray) -> float:

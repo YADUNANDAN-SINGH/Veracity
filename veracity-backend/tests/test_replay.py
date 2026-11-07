@@ -97,6 +97,26 @@ def test_recorded_scenario_replays_the_models_voice_scores(api, tmp_path, monkey
     assert report["voice"]["final_state"] == "LIKELY_AI" and report["voice"]["max_p_ai"] == 0.93
 
 
+def test_an_ai_voice_keeps_the_call_likely_ai_after_a_human_speaks(api, tmp_path, monkeypatch):
+    # A cloned voice for 6 s, then a real person for 8 s: the meter goes back to human,
+    # but the payment gate and the report still see a call that had an AI voice
+    windows = [{"t": t, "p_ai": 0.95} for t in range(1, 7)] + [{"t": t, "p_ai": 0.03} for t in range(7, 15)]
+    scenario = {
+        "title": "Clone then human", "region": "US", "source": "recorded", "caller_number": "+12025550143",
+        "lines": [{"t": 2, "text": "Hi, it's me."}],
+        "voice": {"windows": windows, "levels": [{"t": round(0.1 * i, 1), "dbfs": -30.0} for i in range(1, 150)]},
+    }
+    (tmp_path / "clone_then_human.json").write_text(json.dumps(scenario))
+    monkeypatch.setattr(replay, "SCENARIO_DIR", tmp_path)
+    sid = start(api, "clone_then_human")
+    session = session_routes.SESSIONS[sid]
+    wait_for(lambda: len(session.windows) == len(windows))
+    assert session.smoother.state == "LIKELY_HUMAN"
+    assert api.get(f"/api/session/{sid}/risk").json()["voice_state"] == "LIKELY_AI"
+    report = api.post(f"/api/session/{sid}/stop").json()
+    assert report["voice"]["final_state"] == "LIKELY_AI"
+
+
 def test_unknown_or_unsafe_scenarios_are_refused(api):
     assert api.post("/api/session/start", json={"scenario": "nope"}).status_code == 404
     assert api.post("/api/session/start", json={"scenario": "../main"}).status_code == 404

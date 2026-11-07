@@ -64,6 +64,12 @@
   gap: var(--space-5);
 }
 
+/* The danger banner's reasons when more than one alert has fired */
+.live-page__alert-reasons {
+  margin: 0 0 var(--space-1);
+  padding-left: 1.2em;
+}
+
 .live-page__caller {
   display: grid;
   gap: var(--space-4);
