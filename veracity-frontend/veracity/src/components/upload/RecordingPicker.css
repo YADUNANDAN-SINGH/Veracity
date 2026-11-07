@@ -1,0 +1,35 @@
+.recording-picker {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.recording-picker__input {
+  max-width: 100%;
+  padding: var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+  color: var(--ink);
+  font: inherit;
+}
+
+.recording-picker__input::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-200);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recording-picker__meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.recording-picker__problem {
+  margin: 0;
+  color: var(--risk-high);
+}

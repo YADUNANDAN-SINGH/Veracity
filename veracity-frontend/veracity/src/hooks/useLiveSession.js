@@ -10,9 +10,13 @@
  * backend through the real scam rules and announces itself with a `mode` event.
  * Only an old backend with no session API (start returns 404) falls back to the
  * scripted call in demoCall.js, played in the browser, with `demo: true`.
+ *
+ * An uploaded recording (start with `recording`, the full judge build) goes through
+ * POST /api/session/upload, announces itself with a `mode` event with `upload: true`,
+ * and sends `audio_done` when the file has played; the call stays on until stop().
  */
 import { useCallback, useReducer, useRef } from 'react'
-import { openLiveSocket, startSession, stopSession } from '../api/session'
+import { openLiveSocket, startSession, stopSession, uploadRecording } from '../api/session'
 import { startDemoCall } from '../api/demoCall'
 
 const SERIES_LIMIT = 3600 // one voice window per second: an hour of call
@@ -23,6 +27,9 @@ const INITIAL = {
   sessionId: null,
   demo: false,
   replay: null, // the backend's `mode` event on a replayed call: { scenario, title, source, voice_scored, region }
+  upload: null, // the `mode` event on an uploaded recording: { filename, duration_s, region, llm }
+  uploadProgress: null, // 0–1 while the file is being sent
+  audioDone: false, // the uploaded recording has played to the end
   error: null,
   elapsed: 0,
   level: null, // latest dBFS
@@ -44,7 +51,9 @@ function reducer(state, action) {
     case 'reset':
       return INITIAL
     case 'started':
-      return { ...state, status: 'live', sessionId: action.sessionId, demo: action.demo }
+      return { ...state, status: 'live', sessionId: action.sessionId, demo: action.demo, uploadProgress: null }
+    case 'upload-progress':
+      return { ...state, uploadProgress: action.fraction }
     case 'failed':
       return { ...state, status: 'error', error: action.error }
     case 'stopping':
@@ -63,7 +72,9 @@ function applyEvent(state, event) {
   const elapsed = typeof event.t === 'number' ? Math.max(state.elapsed, event.t) : state.elapsed
   switch (event.type) {
     case 'mode':
-      return { ...state, replay: event.replay ? event : null }
+      return { ...state, replay: event.replay ? event : null, upload: event.upload ? event : null }
+    case 'audio_done':
+      return { ...state, elapsed, audioDone: true }
     case 'level':
       return {
         ...state,
@@ -99,7 +110,7 @@ export function useLiveSession() {
   const closeRef = useRef(null) // closes the socket, or the demo's stop()
   const activeRef = useRef(false) // guards double starts (StrictMode runs effects twice)
 
-  const start = useCallback(async ({ callerNumber, saveAudio, number, scenario = null }) => {
+  const start = useCallback(async ({ callerNumber, saveAudio, number, scenario = null, recording = null }) => {
     if (activeRef.current) return
     activeRef.current = true
     dispatch({ type: 'start' })
@@ -109,14 +120,19 @@ export function useLiveSession() {
     }
 
     try {
-      const { session_id } = await startSession({ callerNumber, saveAudio, scenario })
+      const { session_id } = recording
+        ? await uploadRecording(recording, {
+            callerNumber,
+            onProgress: (fraction) => dispatch({ type: 'upload-progress', fraction }),
+          })
+        : await startSession({ callerNumber, saveAudio, scenario })
       closeRef.current = openLiveSocket(session_id, {
         onEvent,
         onClose: () => dispatch({ type: 'stream-lost' }),
       })
       dispatch({ type: 'started', sessionId: session_id, demo: false })
     } catch (error) {
-      if (error.status === 404) {
+      if (error.status === 404 && !recording) {
         const demo = startDemoCall({ callerNumber, number, onEvent })
         closeRef.current = demo.stop
         dispatch({ type: 'started', sessionId: 'demo', demo: true })
@@ -137,7 +153,7 @@ export function useLiveSession() {
       return
     }
     try {
-      const report = await stopSession(state.sessionId)
+      const report = await stopSession(state.sessionId, state.upload ? { timeoutMs: 120000 } : undefined)
       dispatch({ type: 'event', event: { type: 'report', report } })
       dispatch({ type: 'event', event: { type: 'ended' } })
     } catch (error) {
@@ -145,7 +161,7 @@ export function useLiveSession() {
     } finally {
       close?.()
     }
-  }, [state.demo, state.sessionId])
+  }, [state.demo, state.sessionId, state.upload])
 
   /** Forget a finished call so the next visit to Step 3 starts a new one. */
   const reset = useCallback(() => {

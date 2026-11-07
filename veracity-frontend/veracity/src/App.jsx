@@ -6,6 +6,9 @@
  * call status keeps ticking and Step 4 can show the finished report. So do the
  * call's Protected Send payments: a hold made during the call is decided on the
  * report page, after the user has called the person back.
+ *
+ * The judge builds offer two ways in: a sample call to replay, or (the full judge
+ * build) an uploaded recording, picked in Step 2 and analysed by the real models.
  */
 import { useState } from 'react'
 import AppHeader from './components/layout/AppHeader'
@@ -25,6 +28,8 @@ export default function App() {
   const [step, setStep] = useState(1)
   const [saveAudio, setSaveAudio] = useState(false) // sent with POST /api/session/start
   const [scenario, setScenario] = useState(null) // the replayed call picked in Step 2 (judge mode, VERA_FAKE=1)
+  const [uploadMode, setUploadMode] = useState(false) // the judge chose "Upload a call recording"
+  const [recording, setRecording] = useState(null) // the File picked in Step 2 in upload mode
   const healthState = useHealth()
   const numberState = useNumberCheck() // result goes into the report later
   const live = useLiveSession()
@@ -34,6 +39,21 @@ export default function App() {
   const health = healthState.health
   const hosted = health?.mode === 'judge'
   const replayMode = hosted || Boolean(health?.fake_mode)
+
+  function pickSamples() {
+    if (uploadMode) {
+      numberState.clear()
+      setScenario(null) // Step 2 picks the default sample call again and checks its number
+    }
+    setUploadMode(false)
+    setStep(2)
+  }
+
+  function pickUpload() {
+    if (!uploadMode) numberState.clear() // a sample call's number isn't this recording's caller
+    setUploadMode(true)
+    setStep(2)
+  }
 
   function goToLiveCall() {
     if (live.status === 'ended' || live.status === 'error') live.reset() // a new number means a new call
@@ -56,12 +76,17 @@ export default function App() {
           healthState={healthState}
           saveAudio={saveAudio}
           onSaveAudioChange={setSaveAudio}
-          onContinue={() => setStep(2)}
+          onContinue={hosted ? pickSamples : () => setStep(2)}
+          onUpload={pickUpload}
         />
       ) : step === 2 ? (
         <NumberPage
           numberState={numberState}
           replayMode={replayMode}
+          uploadMode={hosted && uploadMode}
+          upload={health?.upload}
+          recording={recording}
+          onRecording={setRecording}
           region={health?.region}
           scenario={scenario}
           onScenario={setScenario}
@@ -74,7 +99,8 @@ export default function App() {
           number={numberState.details}
           health={health}
           saveAudio={saveAudio}
-          scenario={replayMode ? scenario : null}
+          scenario={replayMode && !uploadMode ? scenario : null}
+          recording={hosted && uploadMode ? recording : null}
           payments={payments}
           paymentConfig={paymentConfig}
           onBack={() => setStep(2)}
