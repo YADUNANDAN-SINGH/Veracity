@@ -32,6 +32,7 @@ import './NumberPage.css'
  * @param {object}   props.numberState  { details, loading, error, check } from useNumberCheck()
  * @param {boolean}  props.replayMode   no phone: pick a sample call to replay
  * @param {boolean}  props.uploadMode   upload a call recording instead of a sample call (full judge build)
+ * @param {Function} props.onMode       judge builds: ('samples' | 'upload') => void, switches between the two
  * @param {object}   props.upload       health.upload: { available, reason, max_mb, max_s }
  * @param {File}     props.recording    the picked recording, or null
  * @param {Function} props.onRecording  (file | null) => void
@@ -42,8 +43,8 @@ import './NumberPage.css'
  * @param {Function} props.onContinue   go to Step 3 · Live call
  */
 export default function NumberPage({
-  numberState, replayMode = false, uploadMode = false, upload, recording, onRecording, region, scenario, onScenario,
-  onBack, onContinue,
+  numberState, replayMode = false, uploadMode = false, onMode, upload, recording, onRecording, region, scenario,
+  onScenario, onBack, onContinue,
 }) {
   const { details, loading, error, check, clear } = numberState
   const [number, setNumber] = useState(details?.e164_format ?? '')
@@ -81,6 +82,12 @@ export default function NumberPage({
     }
   }, [pickSample, scenario, scenarios, defaultId, onScenario, check])
 
+  function switchMode(mode) {
+    if (mode === (uploadMode ? 'upload' : 'samples')) return
+    setNumber('') // the other mode brings its own number: the sample call's, or none
+    onMode(mode)
+  }
+
   function handleSubmit(event) {
     event.preventDefault()
     if (trimmed && !loading) check(trimmed)
@@ -104,6 +111,33 @@ export default function NumberPage({
               : 'Enter the number shown on the phone. Veracity checks it against public numbering data before the call is analysed.'}
         </p>
       </div>
+
+      {onMode && (
+        <div className="number-page__modes" role="group" aria-label="What to analyse">
+          <button
+            type="button"
+            className={`number-page__mode${uploadMode ? '' : ' is-selected'}`}
+            aria-pressed={!uploadMode}
+            onClick={() => switchMode('samples')}
+          >
+            <span className="t-label">Sample call</span>
+            <span className="t-body-sm muted">A scripted call through the real scam rules</span>
+          </button>
+          <button
+            type="button"
+            className={`number-page__mode${uploadMode ? ' is-selected' : ''}`}
+            aria-pressed={uploadMode}
+            disabled={!upload?.available && !uploadMode}
+            title={upload?.available ? undefined : upload?.reason}
+            onClick={() => switchMode('upload')}
+          >
+            <span className="t-label">Upload a recording</span>
+            <span className="t-body-sm muted">
+              {upload?.available ? 'Your own audio: AI voice, transcript, red flags' : `Unavailable: ${upload?.reason ?? 'needs the full judge build'}`}
+            </span>
+          </button>
+        </div>
+      )}
 
       {uploadMode && (
         <Panel title="Call recording" action={<span className="t-body-sm muted">analysed by the real models</span>}>

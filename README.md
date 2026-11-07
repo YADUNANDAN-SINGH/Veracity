@@ -28,6 +28,17 @@ There's no hosted demo: Veracity runs on your own machine, with the real models,
 <!-- TODO: replace VIDEO_URL with the YouTube link -->
 **Demo video:** `VIDEO_URL`
 
+There are two ways to test it:
+
+| | **Quick: Docker** (this section) | **Deep: the full setup, without Docker** ([below](#test-it-deeper-the-full-setup-without-docker)) |
+| --- | --- | --- |
+| What you can test | Sample calls, and your own uploaded recordings through Spectra-0, Whisper *small*, the scam rules, the payment gate and the report | Everything in Docker, plus a **real phone call** captured live, Whisper large-v3-turbo, the local LLM, Hindi calls and *Save call audio* |
+| Computer | macOS, Windows or Linux; amd64 or arm64 | A Mac with Apple Silicon |
+| Software | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose 2.24 or newer), git | git, [Homebrew](https://brew.sh/), Python 3.12 or 3.13, Node.js 22, adb, scrcpy 3.2 or newer, BlackHole 2ch; [Ollama](https://ollama.com/) is optional |
+| Hardware | At least 6 GB of memory for Docker, about 10 GB of free disk | An Android phone with USB debugging on, a USB data cable, and a second phone to call it from |
+| Downloads | The image is 6.2 GB once built; the models are baked in | Spectra-0 (1.3 GB), Whisper large-v3-turbo (1.5 GB), and Llama 3.1 8B (4.9 GB) if you use the LLM |
+| PayPal | Optional: sandbox keys in `.env` for Protected Send ([docs/PAYPAL_SETUP.md](docs/PAYPAL_SETUP.md)) | The same |
+
 1. **Install Docker**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) on macOS or Windows, or Docker Engine with the Compose plugin on Linux. Give Docker **at least 6 GB of memory** (Docker Desktop → Settings → Resources) and keep **about 10 GB of disk** free: the image is 6.2 GB.
 2. **Get the code**:
 
@@ -71,9 +82,22 @@ Then try **A real grandson asking for concert money**: the $40 is held while the
 
 Upload the audio file itself. A clip played from a speaker across a room is the hardest case for the voice model ([`eval/voice_results.md`](eval/voice_results.md)).
 
+**Try a newer AI voice too.** [`docs/Audio/AI genrated scam emotional voice genrated using - ElevenLabsm.mp3`](docs/Audio/AI%20genrated%20scam%20emotional%20voice%20genrated%20using%20-%20ElevenLabsm.mp3) is a scam call in an emotional voice we generated with [ElevenLabs](https://elevenlabs.io/) (44 s). Upload it in Test 2 and see what Veracity makes of it.
+
 **Uploads run slower than real time.** Docker has no GPU, and the voice model scores 4 seconds of audio every second. On the Apple M5 above, a 60-second recording took **2.0 to 2.4 minutes** to reach its report (3 runs). A slower laptop takes longer. The results are the same as at full speed: nothing is skipped.
 
 **What's real in each test.** Sample calls are scripted transcripts run through the real scam rules, risk fusion, payment gate and PayPal sandbox; they have no audio, so no voice score. Uploads also run the real AI-voice model (Spectra-0) and Whisper (*small* in Docker, on the CPU; the phone build uses large-v3-turbo). Docker has no local LLM, so uploads use the scam rules alone, and the report says so (`llm_used: false`). The live phone capture (scrcpy and BlackHole on a real call) is what the video and the [real-call tests](#tested-on-real-phone-calls) below show.
+
+### Test it deeper: the full setup, without Docker
+
+To judge Veracity the way it's meant to run, on a **real phone call** as it happens, set up the phone build on a Mac. Follow [The phone build (Mac + Android)](#the-phone-build-mac--android) below, and the table above for what you need. Compared with Docker it adds:
+
+- **A live call**: the caller's voice is captured from an Android phone over USB (scrcpy and BlackHole), and the meters, transcript and red flags update while you're still talking.
+- **The bigger models**: Whisper large-v3-turbo instead of *small*, Spectra-0 on the Mac's GPU when PyTorch can use it, and the local LLM (Llama 3.1 8B through Ollama) reading the transcript for tactics the rules miss.
+- **More ways to test**: Hindi and Hinglish calls (`VERA_LANGUAGE=hi`), *Save call audio* with a SHA-256 in the report, and the number filled in from the ringing phone.
+- **The same PayPal sandbox flow**: Protected Send during the call, held, then released or voided.
+
+No Android phone? The same backend replays the sample calls without one (`VERA_FAKE=1`; see the phone build section).
 
 ---
 

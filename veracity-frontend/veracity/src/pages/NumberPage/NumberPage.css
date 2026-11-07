@@ -36,6 +36,39 @@
   color: var(--brand);
 }
 
+/* Judge builds: a sample call or an uploaded recording */
+.number-page__modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.number-page__mode {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-000);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.number-page__mode:hover:not(:disabled) {
+  background: var(--surface-200);
+}
+
+.number-page__mode.is-selected {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.number-page__mode:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* Sample calls to replay (judge mode / VERA_FAKE=1) */
 .number-page__samples {
   margin: 0;
@@ -148,6 +181,9 @@
   }
   .number-page__row {
     flex-direction: column;
+  }
+  .number-page__modes {
+    grid-template-columns: 1fr;
   }
   .number-page__fact {
     grid-template-columns: 1fr;

@@ -40,19 +40,18 @@ export default function App() {
   const hosted = health?.mode === 'judge'
   const replayMode = hosted || Boolean(health?.fake_mode)
 
-  function pickSamples() {
+  /* The judge builds' two ways in, chosen on Step 1 or switched on Step 2 */
+  function chooseSamples() {
     if (uploadMode) {
       numberState.clear()
       setScenario(null) // Step 2 picks the default sample call again and checks its number
     }
     setUploadMode(false)
-    setStep(2)
   }
 
-  function pickUpload() {
+  function chooseUpload() {
     if (!uploadMode) numberState.clear() // a sample call's number isn't this recording's caller
     setUploadMode(true)
-    setStep(2)
   }
 
   function goToLiveCall() {
@@ -76,14 +75,21 @@ export default function App() {
           healthState={healthState}
           saveAudio={saveAudio}
           onSaveAudioChange={setSaveAudio}
-          onContinue={hosted ? pickSamples : () => setStep(2)}
-          onUpload={pickUpload}
+          onContinue={() => {
+            if (hosted) chooseSamples()
+            setStep(2)
+          }}
+          onUpload={() => {
+            chooseUpload()
+            setStep(2)
+          }}
         />
       ) : step === 2 ? (
         <NumberPage
           numberState={numberState}
           replayMode={replayMode}
           uploadMode={hosted && uploadMode}
+          onMode={hosted ? (mode) => (mode === 'upload' ? chooseUpload() : chooseSamples()) : undefined}
           upload={health?.upload}
           recording={recording}
           onRecording={setRecording}
