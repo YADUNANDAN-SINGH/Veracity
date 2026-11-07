@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app.feature import payment_gate
+from app.feature import payment_gate, upload
 from app.feature.session import warm_models
 from app.routes import call, health, number, payment, report, session
 
@@ -29,9 +29,12 @@ def sweep_holds(stop: threading.Event) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # The models take a few seconds to load; do it now, not on the first call.
-    # The judge build replays calls and has no models to load.
+    # The light judge build replays calls and has no models to load; the full one
+    # (Dockerfile.judge, VERA_UPLOAD=1) needs them for uploaded recordings.
     if not JUDGE_MODE:
         threading.Thread(target=warm_models, name="warm-models", daemon=True).start()
+    elif upload.ENABLED and upload.models_installed():
+        threading.Thread(target=upload.warm, name="warm-models", daemon=True).start()
     stop = threading.Event()
     threading.Thread(target=sweep_holds, args=(stop,), name="payment-sweeper", daemon=True).start()
     yield

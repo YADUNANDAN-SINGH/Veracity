@@ -59,6 +59,9 @@ def no_audio_message() -> str:
 
 
 class Session:
+    # The "nothing is reaching BlackHole" alert; an uploaded recording (app/feature/upload.py) turns it off
+    watch_routing = True
+
     def __init__(self, caller_number: str | None, save_audio: bool, loop: asyncio.AbstractEventLoop):
         self.id = uuid.uuid4().hex
         self.caller_number = caller_number
@@ -94,6 +97,7 @@ class Session:
         self._llm = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm")
         self._llm_job: Future | None = None
         self._lines_heard = 0
+        self.llm_used = False  # a local LLM verdict came back at least once (the report says so)
         self._audio_thread = threading.Thread(target=self._run_audio, name="audio", daemon=True)
         self._text_thread = threading.Thread(target=self._run_transcriber, name="transcriber", daemon=True)
         self.report: dict | None = None
@@ -198,6 +202,8 @@ class Session:
             while not self._stop.is_set():
                 block = self.capture.read(timeout=0.5)
                 if block is None:
+                    if self.capture.finished:  # a recording ran out (FileCapture); a live input never does
+                        break
                     continue
                 x = resample(block)
                 samples += len(x)
@@ -208,7 +214,7 @@ class Session:
 
                 # BlackHole sends exact zeros while nothing plays into it, unlike a quiet call
                 heard = heard or bool(block.any())
-                if not heard and t >= NO_AUDIO_S and "audio" not in self.alerted:
+                if self.watch_routing and not heard and t >= NO_AUDIO_S and "audio" not in self.alerted:
                     self.alerted.add("audio")
                     self._publish({"type": "alert", "kind": "audio", "message": no_audio_message()})
 
@@ -281,6 +287,7 @@ class Session:
 
     def _run_llm(self, full_transcript: str) -> None:
         verdict = scam_llm.analyse(full_transcript)
+        self.llm_used = self.llm_used or verdict is not None
         # On garbled transcripts the LLM guesses; only a confident "this is a scam" adds flags
         if verdict is None or not verdict.scam_likely or verdict.confidence < LLM_MIN_CONFIDENCE:
             return
@@ -342,6 +349,7 @@ class Session:
             script_score=scam_rules.script_score(self.categories),
             scam_type=self.scam_type,
             transcript=" ".join(line["text"] for line in self.transcript),
+            llm_used=self.llm_used,
             audio_sha256=self._save_audio() if self.save_audio else None,
         ).model_dump(mode="json")
         reports_db.save_report(report)  # for GET /api/report/{id}

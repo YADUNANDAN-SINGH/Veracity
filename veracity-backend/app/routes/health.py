@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
-from app.feature import payment_gate, paypal_client
+from app.feature import file_capture, payment_gate, paypal_client, upload
 from app.feature.number_intelligence import DEFAULT_REGION
 
 router = APIRouter(prefix="/api", tags=["health"])
@@ -102,6 +102,12 @@ def _ollama_has(model: str) -> bool:
     return model in names or f"{model}:latest" in names
 
 
+def _upload() -> dict:
+    """Whether an uploaded recording can be analysed here (the full judge build), and the limits."""
+    available, reason = upload.availability()
+    return {"available": available, "reason": reason, "max_mb": upload.MAX_MB, "max_s": file_capture.MAX_S}
+
+
 @router.get("/health")
 def health(request: Request):
     paypal = {
@@ -115,7 +121,7 @@ def health(request: Request):
         buyer = {"email": os.environ["VERA_SANDBOX_BUYER_EMAIL"], "password": os.environ.get("VERA_SANDBOX_BUYER_PASSWORD")}
     if MODE == "judge":  # nothing to check on a server: no phone, no audio input, no local models
         return {"status": "ok", "mode": MODE, "region": DEFAULT_REGION, "fake_mode": False, "paypal": paypal,
-                "sandbox_buyer": buyer}
+                "sandbox_buyer": buyer, "upload": _upload()}
 
     adb_found = shutil.which("adb") is not None
     scrcpy_found = shutil.which("scrcpy") is not None
@@ -127,6 +133,7 @@ def health(request: Request):
         "region": DEFAULT_REGION,
         "paypal": paypal,
         "sandbox_buyer": buyer,
+        "upload": _upload(),
         "fake_mode": os.environ.get("VERA_FAKE") == "1",
         "port": request.url.port or 8000,
         "adb_found": adb_found,

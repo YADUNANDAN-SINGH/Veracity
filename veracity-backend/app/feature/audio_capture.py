@@ -94,6 +94,8 @@ def rms_dbfs(x: np.ndarray) -> float:
 class LiveCapture:
     """Reads AUDIO_DEVICE in 0.1 s blocks on PortAudio's thread; read() hands them out."""
 
+    finished = False  # a live input never runs out (FileCapture's does)
+
     def __init__(self, device_name: str = AUDIO_DEVICE):
         import sounddevice as sd  # imported here so the server runs without PortAudio (Docker)
 

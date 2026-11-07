@@ -120,6 +120,8 @@ class ScriptSection(BaseModel):
     red_flags: list[RedFlag]
     scam_type: str | None
     transcript_excerpt: str = Field(max_length=TRANSCRIPT_LIMIT)
+    # Whether the local LLM (Ollama) answered at least once; None on reports from before this field
+    llm_used: bool | None = None
 
 
 class Overall(BaseModel):
@@ -239,6 +241,7 @@ def build_report(
     scam_type: str | None,
     transcript: str,
     audio_sha256: str | None = None,
+    llm_used: bool | None = None,
 ) -> Report:
     """Assemble the report. `number` is analyse_number()'s output, or None if the caller was unknown."""
     number_section = None
@@ -273,6 +276,7 @@ def build_report(
         red_flags=[RedFlag(**f) for f in red_flags],
         scam_type=scam_type,
         transcript_excerpt=transcript[:TRANSCRIPT_LIMIT],
+        llm_used=llm_used,
     )
 
     voice_peak = round(voice.smoothed_peak * 100)
