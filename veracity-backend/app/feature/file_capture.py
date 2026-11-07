@@ -22,7 +22,9 @@ from app.feature.audio_capture import BLOCK_S, TARGET_SR
 log = logging.getLogger("veracity.upload")
 
 SPEED = float(os.environ.get("VERA_UPLOAD_SPEED", "1"))  # 2 plays a recording twice as fast; the tests use more
-MAX_S = float(os.environ.get("VERA_UPLOAD_MAX_S", "300"))
+# On CPU the models run slower than real time (a 60 s recording took ~2.2 min on an
+# Apple M5 in Docker), so the default keeps a judge's wait to a few minutes
+MAX_S = float(os.environ.get("VERA_UPLOAD_MAX_S", "120"))
 DECODE_TIMEOUT_S = 120
 
 

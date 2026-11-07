@@ -260,5 +260,5 @@ def test_health_has_the_upload_block_in_the_light_and_phone_builds(monkeypatch, 
             monkeypatch.setattr(health_routes, "MODE", mode)
             body = client.get("/api/health").json()
             assert body["upload"]["available"] is False and body["upload"]["reason"] == "needs the full judge build"
-            assert body["upload"]["max_mb"] == 20 and body["upload"]["max_s"] == 300
+            assert body["upload"]["max_mb"] == 20 and body["upload"]["max_s"] == 120
             assert {"status", "mode", "region", "paypal", "sandbox_buyer", "fake_mode"} <= set(body)

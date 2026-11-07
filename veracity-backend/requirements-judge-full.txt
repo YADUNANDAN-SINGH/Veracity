@@ -1,0 +1,16 @@
+# The full judge build (Dockerfile.judge): the light judge build plus what an
+# uploaded recording needs: Spectra-0 (torch, transformers), Whisper
+# (faster-whisper), and multipart uploads. ffmpeg comes from apt.
+# torch itself is installed first from PyTorch's CPU wheel index (see
+# Dockerfile.judge), so pip never pulls the multi-GB CUDA build from PyPI.
+# Pinned (Python 3.12) so a new release can't break a rebuild during judging.
+-r requirements-judge.txt
+python-multipart==0.0.33
+transformers==5.22.1
+huggingface_hub==2.4.0
+safetensors==0.8.0
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+av==19.0.2
+onnxruntime==1.31.1
+tokenizers==0.23.3

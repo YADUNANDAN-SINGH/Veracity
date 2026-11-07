@@ -35,3 +35,26 @@ services:
       - /app/node_modules # keep the container's Linux node_modules, not the Mac's
     depends_on:
       - backend
+
+  # The full judge build (Dockerfile.judge): the real models, so judges can upload
+  # their own call recording. Name the service so the services above don't start too
+  # (backend also uses port 8000):
+  #   cp .env.example .env    # PayPal sandbox keys, optional
+  #   docker compose --profile judge up --build judge  → http://localhost:8000
+  judge:
+    profiles: ["judge"]
+    build:
+      context: .
+      dockerfile: Dockerfile.judge
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      VERA_DB: /data/veracity.db # reports, community reports and held payments survive a restart
+    ports:
+      - "8000:8000"
+    volumes:
+      - judge-data:/data
+
+volumes:
+  judge-data:
