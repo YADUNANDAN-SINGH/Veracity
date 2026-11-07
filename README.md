@@ -15,7 +15,7 @@
 <sub>From a real phone call on 6 November 2026: a fake grandson asked for $3,000. The payer approved it in PayPal, Veracity held it, and after a callback the authorization was voided at PayPal. <a href="#tested-on-real-phone-calls">See both real-call tests</a>.</sub>
 
 <!-- TODO: replace VIDEO_URL with the YouTube link -->
-**Demo video:** `VIDEO_URL` · [Run it with Docker](#run-it-with-docker) · [How PayPal is used](#paypal-integration)
+**Demo video:** [Demo Video](https://youtu.be/7DbctZZKWP8?si=rJNUZ2vsWjvs9AYc) · [Run it with Docker](#run-it-with-docker) · [How PayPal is used](#paypal-integration)
 
 </div>
 
