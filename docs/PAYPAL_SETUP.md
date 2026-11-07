@@ -9,13 +9,13 @@ Protected Send only talks to the PayPal **sandbox** (`api-m.sandbox.paypal.com`)
 | [3. Run it](#3-run-it-locally) | A held, then voided, $2,400 payment | — |
 | [4. Webhooks](#4-webhooks-optional) | PayPal's own events in the audit trail | `PAYPAL_WEBHOOK_ID` |
 | [5. Payouts](#5-payouts-optional) | Released money forwarded to the recipient | `PAYPAL_PAYOUTS=1` |
-| [6. Deploy](#6-deploy-the-judge-build-on-render) | The hosted judge build | Render |
+| [6. Deploy](#6-deploy-the-judge-build-on-render) | A hosted copy of the light build (optional, not used for judging) | Render |
 
 ## 1. Create a sandbox app
 
 1. Log in to the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) with any PayPal account, and switch the toggle to **Sandbox**.
 2. Open **Apps & Credentials** and create an app: name it `Veracity`, type **Merchant**, and choose the default sandbox business account. That business account receives the money when a payment is released.
-3. Copy the app's **Client ID** and **Secret** into `veracity-backend/.env` (start from `.env.example`):
+3. Copy the app's **Client ID** and **Secret** into `veracity-backend/.env` (start from `.env.example`). For the Docker judge build (`docker compose --profile judge up --build judge`), put them in the `.env` at the repo root instead (`cp .env.example .env` there):
 
    ```bash
    PAYPAL_CLIENT_ID=...
@@ -30,7 +30,7 @@ The payer approves a Protected Send in PayPal's own pop-up, logged in as a sandb
 
 1. Go to **Testing Tools → Sandbox Accounts**. PayPal made a default personal account when you first logged in; to make your own, select **Create account**, choose **Personal** and a country.
 2. In the account's **Settings** menu choose **View/Edit account**, then **Change password** under *Login Info*, and set one you'll remember (8 to 20 characters). PayPal won't show it again.
-3. For the hosted judge build, set `VERA_SANDBOX_BUYER_EMAIL` and `VERA_SANDBOX_BUYER_PASSWORD` to this account, so the setup screen tells judges how to log in to the pop-up. They're sandbox credentials with fake money; never put a real PayPal login there.
+3. For the judge builds, you can set `VERA_SANDBOX_BUYER_EMAIL` and `VERA_SANDBOX_BUYER_PASSWORD` to this account, so the setup screen tells judges how to log in to the pop-up. They're sandbox credentials with fake money; never put a real PayPal login there.
 
 ## 3. Run it locally
 
@@ -76,6 +76,8 @@ With `PAYPAL_PAYOUTS=1`, a released payment is also forwarded from the sandbox b
 If a payout fails, the money stays captured in the business account and the trail says so ("Payout failed: the money is captured but not forwarded").
 
 ## 6. Deploy the judge build on Render
+
+Optional, and not used for judging: judges run the Docker judge build on their own machine (README, *Run it with Docker*).
 
 1. Push the repo to GitHub.
 2. In the [Render dashboard](https://dashboard.render.com/), choose **New → Blueprint** and pick the repo. Render reads [`render.yaml`](../render.yaml): one Docker web service, with `/api/health` as its health check.
