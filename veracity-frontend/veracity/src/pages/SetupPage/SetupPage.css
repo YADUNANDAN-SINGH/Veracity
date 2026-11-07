@@ -21,8 +21,16 @@
   list-style: none;
 }
 
+/* Judge builds: the hint on its own line, both ways in side by side under it */
+.setup-page__footer--judge > p {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+
 .setup-page__footer {
   display: flex;
+  flex-wrap: wrap; /* the judge build's two buttons fit on a phone too */
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-4);

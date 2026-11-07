@@ -46,6 +46,11 @@ def load_model():
         return _model
 
 
+def model_if_ready():
+    """Whisper if it has finished loading, without waiting for it."""
+    return _model
+
+
 def transcribe(x16k: np.ndarray) -> str:
     """One chunk of call audio → its text ("" if nobody spoke)."""
     segments, _info = load_model().transcribe(

@@ -123,3 +123,9 @@
     justify-content: flex-end;
   }
 }
+
+/* An uploaded recording has played to the end; the call is still on until the user ends it */
+.live-page__recording-done {
+  margin: var(--space-1) 0 0;
+  color: var(--brand);
+}

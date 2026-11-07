@@ -25,7 +25,13 @@ export function useNumberCheck() {
     }
   }, [])
 
+  /** Forget the last result, e.g. a sample call's number before uploading a recording. */
+  const clear = useCallback(() => {
+    controllerRef.current?.abort()
+    setState({ details: null, loading: false, error: null })
+  }, [])
+
   useEffect(() => () => controllerRef.current?.abort(), [])
 
-  return { ...state, check }
+  return { ...state, check, clear }
 }

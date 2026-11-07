@@ -10,9 +10,11 @@
  * number is itself worth carrying into the report.
  *
  * Without a phone (judge mode, VERA_FAKE=1) the user picks a sample call to
- * replay instead, and its caller's number is checked the same way.
+ * replay instead, and its caller's number is checked the same way. In the full
+ * judge build they can upload a call recording instead (uploadMode); its number
+ * is optional.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Panel from '../../components/ui/Panel'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -22,24 +24,36 @@ import { REGION_HINTS, buildNumberRows } from '../../api/number'
 import { formatMoney } from '../../api/payment'
 import { useCallState } from '../../hooks/useCallState'
 import { useScenarios } from '../../hooks/useScenarios'
+import RecordingPicker from '../../components/upload/RecordingPicker'
 import './NumberPage.css'
 
 /**
  * @param {object}   props
  * @param {object}   props.numberState  { details, loading, error, check } from useNumberCheck()
  * @param {boolean}  props.replayMode   no phone: pick a sample call to replay
+ * @param {boolean}  props.uploadMode   upload a call recording instead of a sample call (full judge build)
+ * @param {Function} props.onMode       judge builds: ('samples' | 'upload') => void, switches between the two
+ * @param {object}   props.upload       health.upload: { available, reason, max_mb, max_s }
+ * @param {File}     props.recording    the picked recording, or null
+ * @param {Function} props.onRecording  (file | null) => void
  * @param {string}   props.region       the backend's region (IN, US), for the example number
  * @param {object}   props.scenario     the picked sample call, or null
  * @param {Function} props.onScenario   (scenario) => void
  * @param {Function} props.onBack       back to Step 1 · Check setup
  * @param {Function} props.onContinue   go to Step 3 · Live call
  */
-export default function NumberPage({ numberState, replayMode = false, region, scenario, onScenario, onBack, onContinue }) {
-  const { details, loading, error, check } = numberState
+export default function NumberPage({
+  numberState, replayMode = false, uploadMode = false, onMode, upload, recording, onRecording, region, scenario,
+  onScenario, onBack, onContinue,
+}) {
+  const { details, loading, error, check, clear } = numberState
   const [number, setNumber] = useState(details?.e164_format ?? '')
+  const [recordingOk, setRecordingOk] = useState(false)
+  const onRecordingValid = useCallback((ok) => setRecordingOk(ok), [])
   const trimmed = number.trim()
   const hints = REGION_HINTS[region] ?? REGION_HINTS.IN
-  const samples = useScenarios(replayMode)
+  const pickSample = replayMode && !uploadMode
+  const samples = useScenarios(pickSample)
 
   // A ringing phone that shares the caller's number fills the field and checks it
   const call = useCallState({
@@ -59,21 +73,30 @@ export default function NumberPage({ numberState, replayMode = false, region, sc
   // Pick the server's default sample call once the list arrives, so Continue works at once
   const { scenarios, defaultId } = samples
   useEffect(() => {
-    if (!replayMode || scenario || scenarios.length === 0) return
+    if (!pickSample || scenario || scenarios.length === 0) return
     const first = scenarios.find((s) => s.id === defaultId) ?? scenarios[0]
     onScenario(first)
     if (first.caller_number) {
       setNumber(first.caller_number) // eslint-disable-line react/set-state-in-effect
       check(first.caller_number)
     }
-  }, [replayMode, scenario, scenarios, defaultId, onScenario, check])
+  }, [pickSample, scenario, scenarios, defaultId, onScenario, check])
+
+  function switchMode(mode) {
+    if (mode === (uploadMode ? 'upload' : 'samples')) return
+    setNumber('') // the other mode brings its own number: the sample call's, or none
+    onMode(mode)
+  }
 
   function handleSubmit(event) {
     event.preventDefault()
     if (trimmed && !loading) check(trimmed)
   }
 
-  const canContinue = Boolean(details) || (replayMode && Boolean(scenario) && !scenario.caller_number)
+  // An upload's number is optional, but one typed in is checked before the call starts
+  const canContinue = uploadMode
+    ? recordingOk && Boolean(upload?.available) && !loading && (!trimmed || Boolean(details))
+    : Boolean(details) || (replayMode && Boolean(scenario) && !scenario.caller_number)
 
   return (
     <main className="number-page">
@@ -81,13 +104,52 @@ export default function NumberPage({ numberState, replayMode = false, region, sc
         <p className="t-overline muted">STEP 2 OF 4</p>
         <h1 className="t-display">Who is calling?</h1>
         <p className="muted number-page__lede">
-          {replayMode
-            ? 'Pick a sample call to replay. Its caller’s number is checked against public numbering data first, as on a real call.'
-            : 'Enter the number shown on the phone. Veracity checks it against public numbering data before the call is analysed.'}
+          {uploadMode
+            ? 'Upload a recording of the caller. The real AI-voice model and Whisper analyse it as it plays, exactly like a live call. Add the caller’s number if you have it.'
+            : replayMode
+              ? 'Pick a sample call to replay. Its caller’s number is checked against public numbering data first, as on a real call.'
+              : 'Enter the number shown on the phone. Veracity checks it against public numbering data before the call is analysed.'}
         </p>
       </div>
 
-      {replayMode && (
+      {onMode && (
+        <div className="number-page__modes" role="group" aria-label="What to analyse">
+          <button
+            type="button"
+            className={`number-page__mode${uploadMode ? '' : ' is-selected'}`}
+            aria-pressed={!uploadMode}
+            onClick={() => switchMode('samples')}
+          >
+            <span className="t-label">Sample call</span>
+            <span className="t-body-sm muted">A scripted call through the real scam rules</span>
+          </button>
+          <button
+            type="button"
+            className={`number-page__mode${uploadMode ? ' is-selected' : ''}`}
+            aria-pressed={uploadMode}
+            disabled={!upload?.available && !uploadMode}
+            title={upload?.available ? undefined : upload?.reason}
+            onClick={() => switchMode('upload')}
+          >
+            <span className="t-label">Upload a recording</span>
+            <span className="t-body-sm muted">
+              {upload?.available ? 'Your own audio: AI voice, transcript, red flags' : `Unavailable: ${upload?.reason ?? 'needs the full judge build'}`}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {uploadMode && (
+        <Panel title="Call recording" action={<span className="t-body-sm muted">analysed by the real models</span>}>
+          {upload?.available ? (
+            <RecordingPicker file={recording} onFile={onRecording} limits={upload} onValid={onRecordingValid} />
+          ) : (
+            <p className="t-body-sm muted">Uploads aren’t available right now: {upload?.reason ?? 'the backend didn’t say why'}.</p>
+          )}
+        </Panel>
+      )}
+
+      {pickSample && (
         <Panel title="Sample calls" action={<span className="t-body-sm muted">replayed through the real rules</span>} flush>
           {samples.error ? (
             <p className="t-body-sm muted number-page__samples-empty">Couldn’t load the sample calls: {samples.error.message}</p>
@@ -121,7 +183,7 @@ export default function NumberPage({ numberState, replayMode = false, region, sc
         </Panel>
       )}
 
-      <Panel title="Caller's number">
+      <Panel title="Caller's number" action={uploadMode && <span className="t-body-sm muted">optional</span>}>
         {!replayMode && (
           <p className={`number-page__call number-page__call--${callLine.tone} t-body-sm`} role="status">
             <Icon name="phone" size={14} />
@@ -141,7 +203,10 @@ export default function NumberPage({ numberState, replayMode = false, region, sc
               autoComplete="off"
               placeholder={hints.placeholder}
               value={number}
-              onChange={(e) => setNumber(e.target.value)}
+              onChange={(e) => {
+                setNumber(e.target.value)
+                if (uploadMode && !e.target.value.trim()) clear() // an upload can go without a number
+              }}
               aria-describedby="caller-number-hint"
             />
             <Button type="submit" disabled={!trimmed || loading}>
@@ -149,7 +214,7 @@ export default function NumberPage({ numberState, replayMode = false, region, sc
             </Button>
           </div>
           <p id="caller-number-hint" className="t-body-sm muted">
-            {hints.hint}
+            {uploadMode && trimmed && !details && !loading ? 'Check the number, or clear it, to start the call.' : hints.hint}
           </p>
         </form>
       </Panel>

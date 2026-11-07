@@ -1,0 +1,59 @@
+# Veracity's full judge build: the dashboard, the API and the real models in one
+# container, so judges can upload their own call recording. An upload runs
+# through Spectra-0 (AI voice), Whisper, the scam rules, risk fusion, the payment
+# gate and the report, exactly like a live call. The replayed sample calls work
+# too. No phone, no BlackHole and no Ollama: the scam rules run without the LLM.
+#
+#   docker compose --profile judge up --build judge                 → http://localhost:8000
+#   (PayPal sandbox keys from a root .env, see .env.example; optional)
+#
+# The models are baked in at build time, so nothing is downloaded at run time.
+# CPU only; builds on amd64 and arm64 (Apple Silicon). The light replay-only
+# build is the root Dockerfile.
+
+# ---- the dashboard, built once ----
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY veracity-frontend/veracity/package.json veracity-frontend/veracity/package-lock.json ./
+RUN npm ci
+COPY veracity-frontend/veracity/ ./
+RUN npm run build
+
+# ---- the API, the models and ffmpeg ----
+FROM python:3.12-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# CPU-only torch from PyTorch's own index (PyPI's Linux wheel pulls in CUDA)
+ARG TORCH_VERSION=2.15.0
+RUN pip install --no-cache-dir "torch==${TORCH_VERSION}" --index-url https://download.pytorch.org/whl/cpu
+COPY veracity-backend/requirements-judge.txt veracity-backend/requirements-judge-full.txt ./
+RUN pip install --no-cache-dir -r requirements-judge-full.txt
+
+# Bake the models into the image: Spectra-0 at the revision app/feature/spectra0.py pins, and Whisper
+ARG SPECTRA0_REVISION=b3fb6d5c9d8ce069996f100cbe10117fd74165f3
+ARG WHISPER_MODEL=small
+ENV HF_HOME=/models/huggingface
+RUN python -c "from huggingface_hub import hf_hub_download; \
+hf_hub_download('lab260/spectra_0', 'model.safetensors', revision='${SPECTRA0_REVISION}')" \
+ && python -c "from faster_whisper import WhisperModel; \
+WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+
+COPY veracity-backend/ ./
+COPY --from=web /web/dist ./static
+# HF_HUB_OFFLINE: the models above are all it needs, so it never waits on the network.
+# Another VERA_WHISPER_MODEL needs HF_HUB_OFFLINE=0 to download it, or a rebuild
+# with --build-arg WHISPER_MODEL=...
+ENV VERA_MODE=judge \
+    VERA_UPLOAD=1 \
+    VERA_REGION=US \
+    VERA_LANGUAGE=en \
+    VERA_WHISPER_MODEL=${WHISPER_MODEL} \
+    VERA_STATIC_DIR=/app/static \
+    HF_HUB_OFFLINE=1 \
+    PORT=8000
+EXPOSE 8000
+# Splits the CPUs between Spectra-0 (torch) and Whisper, then starts the API
+CMD ["sh", "scripts/judge_start.sh"]

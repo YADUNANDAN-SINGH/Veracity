@@ -4,8 +4,10 @@
 # transcript, so it can't invent evidence. If Ollama isn't running, the
 # session carries on with the rules alone.
 
+import importlib.util
 import logging
 import os
+import urllib.request
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -41,6 +43,17 @@ class ScriptVerdict(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     red_flags: list[LLMFlag]
     advice_for_user: str
+
+
+def available() -> bool:
+    """Ollama's client is installed and the server answers (a quick check, no model call)."""
+    if importlib.util.find_spec("ollama") is None:
+        return False
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=1):
+            return True
+    except OSError:
+        return False
 
 
 def analyse(transcript: str) -> ScriptVerdict | None:

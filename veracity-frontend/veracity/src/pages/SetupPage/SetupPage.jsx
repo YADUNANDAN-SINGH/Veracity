@@ -6,7 +6,7 @@
  * "Continue" stays disabled until every blocking check passes, or the
  * backend runs in simulation mode (VERA_FAKE=1).
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import Panel from '../../components/ui/Panel'
 import Button from '../../components/ui/Button'
 import AlertBanner from '../../components/ui/AlertBanner'
@@ -20,9 +20,10 @@ import './SetupPage.css'
  * @param {object}   props.healthState  { health, loading, error, recheck } from useHealth()
  * @param {boolean}  props.saveAudio    "Save call audio" preference (off by default)
  * @param {Function} props.onSaveAudioChange
- * @param {Function} props.onContinue   go to Step 2 · Check number
+ * @param {Function} props.onContinue   go to Step 2 · Check number (judge mode: pick a sample call)
+ * @param {Function} props.onUpload     judge mode: go to Step 2 to upload a call recording
  */
-export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, onContinue }) {
+export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, onContinue, onUpload }) {
   const { health, loading, error, recheck } = healthState
   const simulation = Boolean(health?.fake_mode)
 
@@ -32,7 +33,9 @@ export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, o
   // Simulation replaces the phone and models, so only a reachable backend matters
   const canContinue = !loading && !error && (simulation || failing.length === 0)
 
-  if (health?.mode === 'judge') return <JudgeSetup health={health} onContinue={onContinue} />
+  if (health?.mode === 'judge') {
+    return <JudgeSetup health={health} recheck={recheck} onContinue={onContinue} onUpload={onUpload} />
+  }
 
   return (
     <main className="setup-page">
@@ -95,12 +98,28 @@ export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, o
   )
 }
 
+/* How often to ask again while the full judge build is still loading its models */
+const UPLOAD_RECHECK_MS = 3000
+const MODELS_LOADING = 'models still loading'
+
 /**
- * The hosted judge build: nothing to set up. Say plainly what is real here and
- * what needs the phone build, so nobody mistakes a replay for a live call.
+ * The judge builds: nothing to set up. Say plainly what is real here and what
+ * needs the phone build, so nobody mistakes a replay for a live call. The full
+ * judge build (Dockerfile.judge) can also analyse an uploaded recording with the
+ * real models; the light one shows that option disabled, with the reason.
  */
-function JudgeSetup({ health, onContinue }) {
+function JudgeSetup({ health, recheck, onContinue, onUpload }) {
   const paypal = health.paypal ?? {}
+  const upload = health.upload ?? { available: false, reason: 'needs the full judge build' }
+  const models = upload.available || upload.reason === MODELS_LOADING // the full judge build
+
+  // The models load for a few seconds after start-up: turn the upload option on when they're ready
+  useEffect(() => {
+    if (upload.reason !== MODELS_LOADING) return undefined
+    const timer = setTimeout(recheck, UPLOAD_RECHECK_MS)
+    return () => clearTimeout(timer)
+  }, [upload.reason, recheck])
+
   const real = [
     {
       id: 'rules',
@@ -124,12 +143,35 @@ function JudgeSetup({ health, onContinue }) {
           }. Test money only.`,
         }
       : { id: 'paypal', title: 'PayPal sandbox', status: 'warn', detail: 'Not configured on this server.' },
+    ...(models
+      ? [
+          {
+            id: 'voice',
+            title: 'AI-voice model',
+            status: upload.available ? 'ok' : 'pending',
+            statusText: upload.available ? undefined : 'Loading',
+            detail: 'Spectra-0, scoring an uploaded recording’s voice every second.',
+          },
+          {
+            id: 'stt',
+            title: 'Whisper',
+            status: upload.available ? 'ok' : 'pending',
+            statusText: upload.available ? undefined : 'Loading',
+            detail: 'Speech to text on an uploaded recording, on this machine’s CPU.',
+          },
+        ]
+      : []),
   ]
-  const phoneOnly = [
-    { id: 'audio', title: 'Live call audio', status: 'pending', statusText: 'Phone build', detail: 'An Android phone over USB, captured with scrcpy and BlackHole.' },
-    { id: 'voice', title: 'AI-voice model', status: 'pending', statusText: 'Phone build', detail: 'wav2vec2 XLS-R, scoring the caller every second.' },
-    { id: 'stt', title: 'Whisper and the local LLM', status: 'pending', statusText: 'Phone build', detail: 'Speech to text and Llama 3.1 8B, all on the laptop.' },
-  ]
+  const phoneOnly = models
+    ? [
+        { id: 'audio', title: 'Live call audio', status: 'pending', statusText: 'Phone build', detail: 'An Android phone over USB, captured with scrcpy and BlackHole.' },
+        { id: 'llm', title: 'The local LLM', status: 'pending', statusText: 'Phone build', detail: 'Llama 3.1 8B through Ollama. Here the scam rules run on their own.' },
+      ]
+    : [
+        { id: 'audio', title: 'Live call audio', status: 'pending', statusText: 'Phone build', detail: 'An Android phone over USB, captured with scrcpy and BlackHole.' },
+        { id: 'voice', title: 'AI-voice model', status: 'pending', statusText: 'Phone build', detail: 'Spectra-0, scoring the caller every second.' },
+        { id: 'stt', title: 'Whisper and the local LLM', status: 'pending', statusText: 'Phone build', detail: 'Speech to text and Llama 3.1 8B, all on the laptop.' },
+      ]
 
   return (
     <main className="setup-page">
@@ -137,9 +179,9 @@ function JudgeSetup({ health, onContinue }) {
         <p className="t-overline muted">STEP 1 OF 4 · JUDGE MODE</p>
         <h1 className="t-display">Is the voice on your call real?</h1>
         <p className="muted setup-page__lede">
-          This is Veracity’s hosted build. Nothing to install: Step 3 replays a sample call through the real scam
-          rules, and if the caller asks for money, Protected Send holds it with the real PayPal sandbox until the
-          call checks out.
+          {models
+            ? 'This is Veracity’s judge build. Replay a sample call through the real scam rules, or upload a call recording for the real AI-voice model and Whisper to analyse. If the caller asks for money, Protected Send holds it with the real PayPal sandbox until the call checks out.'
+            : 'This is Veracity’s hosted build. Nothing to install: Step 3 replays a sample call through the real scam rules, and if the caller asks for money, Protected Send holds it with the real PayPal sandbox until the call checks out.'}
         </p>
       </div>
 
@@ -171,8 +213,13 @@ function JudgeSetup({ health, onContinue }) {
         </AlertBanner>
       )}
 
-      <footer className="setup-page__footer">
-        <p className="t-body-sm muted">About two minutes, start to finish</p>
+      <footer className="setup-page__footer setup-page__footer--judge">
+        <p className="t-body-sm muted" aria-live="polite">
+          {upload.available ? 'A sample call takes about two minutes' : `Upload a call recording: ${upload.reason}`}
+        </p>
+        <Button icon="upload" disabled={!upload.available} onClick={onUpload} title={upload.available ? undefined : upload.reason}>
+          Upload a call recording
+        </Button>
         <Button variant="primary" iconRight="chevron-right" onClick={onContinue}>
           Pick a sample call
         </Button>

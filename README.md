@@ -4,7 +4,7 @@
 
 **Hears scam calls as they happen. If the caller asks for money, PayPal holds it until the call checks out.**
 
-![Tests](https://img.shields.io/badge/tests-114%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-134%20passing-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![PayPal](https://img.shields.io/badge/PayPal-Orders%20v2%20%C2%B7%20Payments%20v2-1d4ed8)
 ![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB)
@@ -14,31 +14,90 @@
 
 <sub>From a real phone call on 6 November 2026: a fake grandson asked for $3,000. The payer approved it in PayPal, Veracity held it, and after a callback the authorization was voided at PayPal. <a href="#tested-on-real-phone-calls">See both real-call tests</a>.</sub>
 
-<!-- TODO: replace RENDER_URL and VIDEO_URL with the real links -->
-**Hosted demo:** `RENDER_URL` · **Demo video:** `VIDEO_URL` · [How PayPal is used](#paypal-integration)
+<!-- TODO: replace VIDEO_URL with the YouTube link -->
+**Demo video:** `VIDEO_URL` · [Run it with Docker](#run-it-with-docker) · [How PayPal is used](#paypal-integration)
 
 </div>
 
 ---
 
-## Try it in 2 minutes
+## Run it with Docker
 
-<!-- TODO: fill in RENDER_URL, VIDEO_URL, BUYER_EMAIL and BUYER_PASSWORD (the sandbox personal account from docs/PAYPAL_SETUP.md step 2) -->
+There's no hosted demo: Veracity runs on your own machine, with the real models, from one command. The same steps in short form are in [docs/JUDGE_TESTING.md](docs/JUDGE_TESTING.md).
 
-| | |
-| --- | --- |
-| Hosted demo | `RENDER_URL` |
-| Demo video | `VIDEO_URL` |
-| PayPal sandbox buyer | `BUYER_EMAIL` / `BUYER_PASSWORD` (a sandbox test account with test money; the demo's first screen shows it too) |
+<!-- TODO: replace VIDEO_URL with the YouTube link -->
+**Demo video:** `VIDEO_URL`
 
-1. Open the demo, select **Pick a sample call**, choose **"Grandma, it's me": a grandparent scam**, then **Start the call**.
-2. When "Jake" asks for $2,400, the **Protected Send** panel is already filled in. Pay with the PayPal button and log in as the sandbox buyer. PayPal authorizes the payment and Veracity **holds** it, quoting the caller's own words.
+There are two ways to test it:
+
+| | **Quick: Docker** (this section) | **Deep: the full setup, without Docker** ([below](#test-it-deeper-the-full-setup-without-docker)) |
+| --- | --- | --- |
+| What you can test | Sample calls, and your own uploaded recordings through Spectra-0, Whisper *small*, the scam rules, the payment gate and the report | Everything in Docker, plus a **real phone call** captured live, Whisper large-v3-turbo, the local LLM, Hindi calls and *Save call audio* |
+| Computer | macOS, Windows or Linux; amd64 or arm64 | A Mac with Apple Silicon |
+| Software | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose 2.24 or newer), git | git, [Homebrew](https://brew.sh/), Python 3.12 or 3.13, Node.js 22, adb, scrcpy 3.2 or newer, BlackHole 2ch; [Ollama](https://ollama.com/) is optional |
+| Hardware | At least 6 GB of memory for Docker, about 10 GB of free disk | An Android phone with USB debugging on, a USB data cable, and a second phone to call it from |
+| Downloads | The image is 6.2 GB once built; the models are baked in | Spectra-0 (1.3 GB), Whisper large-v3-turbo (1.5 GB), and Llama 3.1 8B (4.9 GB) if you use the LLM |
+| PayPal | Optional: sandbox keys in `.env` for Protected Send ([docs/PAYPAL_SETUP.md](docs/PAYPAL_SETUP.md)) | The same |
+
+1. **Install Docker**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) on macOS or Windows, or Docker Engine with the Compose plugin on Linux. Give Docker **at least 6 GB of memory** (Docker Desktop → Settings → Resources) and keep **about 10 GB of disk** free: the image is 6.2 GB.
+2. **Get the code**:
+
+   ```bash
+   git clone https://github.com/YADUNANDAN-SINGH/Veracity.git && cd Veracity
+   ```
+
+3. **Add PayPal sandbox keys** (optional; without them everything runs except the payment):
+
+   ```bash
+   cp .env.example .env    # then fill in PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET from a sandbox app
+   ```
+
+   [docs/PAYPAL_SETUP.md](docs/PAYPAL_SETUP.md) steps 1 and 2 show how to get them and a sandbox buyer login. `.env` is git-ignored.
+4. **Build and start**:
+
+   ```bash
+   docker compose --profile judge up --build judge
+   ```
+
+   Name the `judge` service as shown: without it, Compose also starts the other services in the file.
+5. **Open <http://localhost:8000>.** Uploads become available once the models have loaded: 9 to 21 seconds after start-up in our runs.
+
+**How long it takes, measured** on an Apple M5 (10 CPUs, 7.7 GB for Docker): the first build took **8 min 27 s**, 4 min 48 s of it downloading the models into the image; later starts are ready in 9 to 21 seconds. A slower connection or CPU takes longer. The models are baked into the image, so nothing is downloaded at run time. The image builds on amd64 and arm64 (Apple Silicon).
+
+### Test 1: pick a sample call (scripted)
+
+1. Select **Pick a sample call**, choose **"Grandma, it's me": a grandparent scam**, then **Start the call**.
+2. When "Jake" asks for $2,400, the **Protected Send** panel is already filled in. Pay with the PayPal button and log in as a sandbox buyer. PayPal authorizes the payment and Veracity **holds** it, quoting the caller's own words.
 3. Select **End call & build report**. The held card asks you to call Jake back on the number saved in your phone.
 4. Select **Jake didn't ask: cancel**. Veracity voids the authorization at PayPal: *"Cancelled. The money never left your account."* Open **Details** to see each PayPal call with its HTTP status and `debug_id`.
 
 Then try **A real grandson asking for concert money**: the $40 is held while the call is on, and released (captured) when it ends.
 
-The hosted demo replays scripted calls through the real scam rules, payment gate and PayPal sandbox. The live phone build, with the AI models listening to a real call, is what the [real-call tests](#tested-on-real-phone-calls) below and the video show.
+### Test 2: upload a call recording (the real models)
+
+1. Select **Upload a call recording**. Choose an audio file (wav, mp3, m4a, ogg, flac or webm; up to 2 minutes and 20 MB), add the caller's number if you like, then **Start the call**. [`samples/`](samples/) has clips to try.
+2. The recording plays through the same pipeline as a live call: the voice meter (Spectra-0), the transcript at each pause (Whisper), red flags and the live risk.
+3. While it plays, make a **Protected Send** payment: enter an amount and a recipient, pay with the PayPal button as the sandbox buyer. Veracity **holds** it while the call is on.
+4. When the screen says **Recording finished**, select **End call & build report**. The gate decides the held payment with the final report, as on a real call.
+
+Upload the audio file itself. A clip played from a speaker across a room is the hardest case for the voice model ([`eval/voice_results.md`](eval/voice_results.md)).
+
+**Try a newer AI voice too.** [`docs/Audio/AI genrated scam emotional voice genrated using - ElevenLabsm.mp3`](docs/Audio/AI%20genrated%20scam%20emotional%20voice%20genrated%20using%20-%20ElevenLabsm.mp3) is a scam call in an emotional voice we generated with [ElevenLabs](https://elevenlabs.io/) (44 s). Upload it in Test 2 and see what Veracity makes of it.
+
+**Uploads run slower than real time.** Docker has no GPU, and the voice model scores 4 seconds of audio every second. On the Apple M5 above, a 60-second recording took **2.0 to 2.4 minutes** to reach its report (3 runs). A slower laptop takes longer. The results are the same as at full speed: nothing is skipped.
+
+**What's real in each test.** Sample calls are scripted transcripts run through the real scam rules, risk fusion, payment gate and PayPal sandbox; they have no audio, so no voice score. Uploads also run the real AI-voice model (Spectra-0) and Whisper (*small* in Docker, on the CPU; the phone build uses large-v3-turbo). Docker has no local LLM, so uploads use the scam rules alone, and the report says so (`llm_used: false`). The live phone capture (scrcpy and BlackHole on a real call) is what the video and the [real-call tests](#tested-on-real-phone-calls) below show.
+
+### Test it deeper: the full setup, without Docker
+
+To judge Veracity the way it's meant to run, on a **real phone call** as it happens, set up the phone build on a Mac. Follow [The phone build (Mac + Android)](#the-phone-build-mac--android) below, and the table above for what you need. Compared with Docker it adds:
+
+- **A live call**: the caller's voice is captured from an Android phone over USB (scrcpy and BlackHole), and the meters, transcript and red flags update while you're still talking.
+- **The bigger models**: Whisper large-v3-turbo instead of *small*, Spectra-0 on the Mac's GPU when PyTorch can use it, and the local LLM (Llama 3.1 8B through Ollama) reading the transcript for tactics the rules miss.
+- **More ways to test**: Hindi and Hinglish calls (`VERA_LANGUAGE=hi`), *Save call audio* with a SHA-256 in the report, and the number filled in from the ringing phone.
+- **The same PayPal sandbox flow**: Protected Send during the call, held, then released or voided.
+
+No Android phone? The same backend replays the sample calls without one (`VERA_FAKE=1`; see the phone build section).
 
 ---
 
@@ -240,13 +299,13 @@ sequenceDiagram
 
 | Model | Job | Where it runs |
 | --- | --- | --- |
-| [Spectra-0](https://huggingface.co/lab260/spectra_0), an XLS-R anti-spoofing network | Scores the last 4 s of the caller's voice every second for how likely it is AI-generated; three windows in a row are needed for *Likely AI*, and the call then stays flagged | Phone build, on the laptop |
-| Whisper large-v3-turbo, through [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | Transcribes the caller at each pause, in Hindi or English | Phone build, on the laptop |
+| [Spectra-0](https://huggingface.co/lab260/spectra_0), an XLS-R anti-spoofing network | Scores the last 4 s of the caller's voice every second for how likely it is AI-generated; three windows in a row are needed for *Likely AI*, and the call then stays flagged | Phone build, on the laptop; the Docker judge build, on uploads |
+| Whisper large-v3-turbo, through [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | Transcribes the caller at each pause, in Hindi or English | Phone build, on the laptop; the Docker judge build uses *small*, on uploads |
 | Llama 3.1 8B, through [Ollama](https://ollama.com/) (optional) | Reads the transcript for scam tactics the rules miss; a flag is kept only if its quote is really in one transcript line | Phone build, on the laptop |
-| Scam rules (plain code, 12 categories) | Flags scam phrases in English, Hinglish and Hindi with the exact words and time, and scores the script 0 to 100 | Both builds |
-| Risk fusion and the payment gate (plain code) | Number 25%, voice 40%, script 35%; one strong signal is enough on its own | Both builds |
+| Scam rules (plain code, 12 categories) | Flags scam phrases in English, Hinglish and Hindi with the exact words and time, and scores the script 0 to 100 | Every build |
+| Risk fusion and the payment gate (plain code) | Number 25%, voice 40%, script 35%; one strong signal is enough on its own | Every build |
 
-**The hosted demo replays scripted calls, so the models run only in the phone build.** The demo has no phone and loads no models: sample calls go through the same scam rules, risk fusion, payment gate and real PayPal sandbox. The dashboard's first screen says so ("Needs the phone build"), and the held card says "Voice not scored on this call".
+**Where the models run.** The phone build runs all three on a live call. The Docker judge build runs Spectra-0 and Whisper on an uploaded recording, without the LLM. Sample calls are scripted, so they load no model: they go through the same scam rules, risk fusion, payment gate and real PayPal sandbox, and the held card says "Voice not scored on this call". The dashboard's first screen lists what is real in the build it runs on.
 
 **AI voices, measured.** On 7 November the tester played the demo video's narration, speech generated by Google Veo, into a call, and the first voice model said *Likely human* throughout. It missed most current generators, and the live pipeline was also resampling the call block by block, which put a click every 0.1 s into what the model heard. Both are fixed. On 40 minutes of AI speech (Veo, ElevenLabs, an AI podcast, macOS voices) and 81 minutes of real people (phone calls in six locales, read Hindi, Tamil and English, audiobooks), each as recorded and through simulated narrowband and wideband calls, Spectra-0 turned **85% of AI calls** *Likely AI* (the old model: 39%) and **1.1% of real people's calls** (the old model flagged up to 60% of the audiobooks). The 2-minute demo narration now turns *Likely AI* 16–75 s into the call. **The hard case is a clip played from a speaker across a room**: the reverberation hides it, and only 19% of AI calls are caught that way. Everything, with the limits: [`eval/voice_results.md`](eval/voice_results.md).
 
@@ -263,7 +322,8 @@ sequenceDiagram
 | Real phone calls with PayPal payments (6 Nov 2026) | Fake grandson, $3,000: **92 / 100**, held, then voided (authorize **201** → void **200**).<br/>Real grandson, $50: **15 / 100**, captured when the call ended (authorize **201** → capture **201**). | [Tested on real phone calls](#tested-on-real-phone-calls), with PayPal's API Calls logs |
 | Real phone call in Hindi (31 Oct 2026) | "Digital arrest" script read by a person: voice *Likely human*, script **82 / 100**, scam alert fired | The screenshot in [AI](#ai) |
 | Scam rules on 48 written test calls (24 scam, 24 ordinary) | Live alert (script ≥ 80): **6 / 24** scams, **0 / 24** ordinary calls.<br/>Some scam signs (script ≥ 40), which hold a payment: **21 / 24** scams, **0 / 24** ordinary calls. | [`eval/results.md`](eval/results.md), from `python eval/run_rules_eval.py` |
-| Automated tests | **114 passing**, with no phone, models or PayPal account (PayPal is replaced by [`tests/fake_paypal.py`](veracity-backend/tests/fake_paypal.py)) | `cd veracity-backend && python -m pytest -q` |
+| Automated tests | **134 passing**, with no phone, models or PayPal account (PayPal is replaced by [`tests/fake_paypal.py`](veracity-backend/tests/fake_paypal.py)) | `cd veracity-backend && python -m pytest -q` |
+| Docker judge build, uploads on an Apple M5 (10 CPUs, 7.7 GB for Docker, no GPU) | A 60 s recording reached its report in **2.0 to 2.4 min** (3 runs); first build **8 min 27 s**; image **6.2 GB**; memory **4.4 GB** at its highest during an upload | Measured on 8 November 2026 |
 | AI-voice model on 40 min of AI speech and 81 min of real people, through simulated calls | **85%** of AI calls turned *Likely AI*, **1.1%** of real people's calls; a clip played from a speaker across a room: **19%** | [`eval/voice_results.md`](eval/voice_results.md), measured with [`eval/voice_eval.py`](eval/voice_eval.py)'s channels |
 
 **About the 48 test calls:** they are short transcripts **written for this test, with AI help**, not recordings. They cover US English, Indian English, Hinglish and Hindi, and include ordinary calls that use the same words as scams (a real bank's fraud check, a delivery driver, a friend asking for $20). The rules were tuned on similar phrasing, so real-world recall will be lower, and on a live call Whisper's mistakes come first.
@@ -277,7 +337,7 @@ sequenceDiagram
 | A live-call detector: Android over USB, scrcpy and BlackHole | **Protected Send**: Orders v2 (intent AUTHORIZE), Payments v2 capture and void, verified webhooks, optional Payouts, the JS SDK v6 button |
 | Number check, the AI-voice model, Whisper, 11 scam-rule categories (Indian scripts), the local LLM | **The payment gate**: hold rules, callbacks, cooling-off, escalation, 72-hour auto-void, reconciling with PayPal, audit trail |
 | The JSON evidence report | US scam scripts and the "it's me" identity claim (12th category); US reporting (FTC, IC3, Elder Fraud Hotline) |
-| 13 tests | Replayed sample calls and the hosted build (Dockerfile, `render.yaml`); the 48-call evaluation and `voice_eval.py`; the AI-voice evaluation; 114 tests; the MIT license; the redesigned payment card |
+| 13 tests | Replayed sample calls and the light build (Dockerfile, `render.yaml`); the Docker judge build with uploaded recordings (`Dockerfile.judge`); the 48-call evaluation and `voice_eval.py`; the AI-voice evaluation; 134 tests; the MIT license; the redesigned payment card |
 
 Everything PayPal was built for this hackathon. Every commit after `3b7f1298` (31 October 2026) is hackathon work.
 
@@ -285,9 +345,13 @@ Everything PayPal was built for this hackathon. Every commit after `3b7f1298` (3
 
 ## Run it yourself
 
-### The hosted build (no phone, no models)
+### The Docker judge build (uploads, the real models)
 
-With Docker:
+See [Run it with Docker](#run-it-with-docker): `docker compose --profile judge up --build judge`. It's [`Dockerfile.judge`](Dockerfile.judge).
+
+### The light build (sample calls only, no models)
+
+A small image with no models: sample calls and Protected Send, no uploads. With Docker:
 
 ```bash
 git clone https://github.com/YADUNANDAN-SINGH/Veracity.git && cd Veracity
@@ -308,7 +372,7 @@ VERA_MODE=judge VERA_REGION=US VERA_STATIC_DIR=../veracity-frontend/veracity/dis
   uvicorn main:app --port 8000 --env-file .env
 ```
 
-Open <http://localhost:8000>. The hosted demo is this same container on Render ([`render.yaml`](render.yaml)).
+Open <http://localhost:8000>. [`render.yaml`](render.yaml) deploys this same container on Render; it's optional and not used for judging.
 
 ### The phone build (Mac + Android)
 
@@ -365,8 +429,11 @@ Android doesn't let ordinary apps record calls. scrcpy runs its capture code on 
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | unset | PayPal **sandbox** REST app; without them Protected Send says it isn't set up |
 | `PAYPAL_WEBHOOK_ID` | unset | Turns on `/api/paypal/webhook` and its signature check |
 | `PAYPAL_PAYOUTS` | `0` | `1`: after a release, forward the money to the recipient's PayPal email |
-| `VERA_SANDBOX_BUYER_EMAIL`, `VERA_SANDBOX_BUYER_PASSWORD` | unset | A **sandbox** test buyer the hosted build shows on its first screen |
-| `VERA_MODE` | unset | `judge`: the hosted build. Replays sample calls, skips hardware checks and model loading |
+| `VERA_SANDBOX_BUYER_EMAIL`, `VERA_SANDBOX_BUYER_PASSWORD` | unset | A **sandbox** test buyer the judge builds show on their first screen |
+| `VERA_MODE` | unset | `judge`: the Docker builds. Replays sample calls and skips hardware checks; loads the models only with `VERA_UPLOAD=1` |
+| `VERA_UPLOAD` | unset (`1` in `Dockerfile.judge`) | `1`: accept uploaded recordings, if torch, faster-whisper and ffmpeg are installed |
+| `VERA_UPLOAD_SPEED` | `1` | `2` plays an uploaded recording twice as fast (the models may not keep up) |
+| `VERA_UPLOAD_MAX_MB`, `VERA_UPLOAD_MAX_S` | `20`, `120` | The largest upload, and the longest recording in seconds |
 | `VERA_REGION` | `IN` | `US` or `IN`: how numbers are read, and which reporting links the report gives |
 | `VERA_FAKE` | unset | `1`: no phone needed; Step 3 replays a sample call |
 | `VERA_SCENARIO` | `grandparent_us` (US) or `digital_arrest_in` (IN) | The sample call a replay starts with |
@@ -380,7 +447,7 @@ Android doesn't let ordinary apps record calls. scrcpy runs its capture code on 
 | `VERA_AUDIO_SOURCE` | `voice-call-downlink` | scrcpy audio source; `voice-call` mixes both sides |
 | `VERA_VOICE_MODEL` | `lab260/spectra_0` | Model for the AI-voice score; any Hugging Face audio-classification model also works |
 | `VERA_VOICE_T`, `VERA_T_AI`, `VERA_T_UNCERTAIN` | `1.0`, `0.75`, `0.40` | Calibration temperature, and the *Likely AI* and *Uncertain* thresholds |
-| `VERA_WHISPER_MODEL`, `VERA_WHISPER_THREADS` | `large-v3-turbo`, up to 8 | Whisper size (use `small` on a slower Mac) and CPU threads |
+| `VERA_WHISPER_MODEL`, `VERA_WHISPER_THREADS` | `large-v3-turbo` (`small` in `Dockerfile.judge`), up to 8 | Whisper size (use `small` on a slower Mac) and CPU threads. The Docker judge build gives Whisper about two thirds of the CPUs and torch (`OMP_NUM_THREADS`) the rest; another size there also needs `HF_HUB_OFFLINE=0` to download it |
 | `VERA_LANGUAGE` | `hi` | `hi`, `en`, or `auto` |
 | `VERA_LLM_MODEL`, `OLLAMA_HOST` | `llama3.1:8b`, `http://localhost:11434` | The local LLM |
 
@@ -399,11 +466,12 @@ Android doesn't let ordinary apps record calls. scrcpy runs its capture code on 
 | POST | `/api/number/report` | Save a community report |
 | GET | `/api/session/scenarios` | The sample calls that can be replayed |
 | POST | `/api/session/start` | Start monitoring (or replaying) a call |
+| POST | `/api/session/upload` | Multipart `file` (and `caller_number`): analyse a recording like a live call. 503 without the models, 409 while another upload runs |
 | POST | `/api/session/{id}/say` | A replayed call hears this as the caller's next words |
 | GET | `/api/session/{id}/risk` | The call's risk so far |
 | POST | `/api/session/{id}/stop` | End the call, decide payments that waited for it, save the report |
 | GET | `/api/report/{id}` | A saved report, with its payments as they are now; `?download=1` sends it as a file |
-| WS | `/ws/live/{id}` | Live events: level, voice, transcript, flag, script, alert, report |
+| WS | `/ws/live/{id}` | Live events: mode, level, voice, transcript, flag, script, alert, audio_done, report |
 | GET | `/api/payment/config` | Whether PayPal is set up, the sandbox client id, currencies, hold policy |
 | POST | `/api/payment/orders` | Create the PayPal order (intent AUTHORIZE) |
 | POST | `/api/payment/orders/{order_id}/authorize` | After the payer approves: authorize, then hold or release |
@@ -433,7 +501,10 @@ Interactive docs are at <http://localhost:8000/docs> while the backend runs.
 | **No phone found** | Run `adb devices`; replug, set USB mode to *File transfer*, accept the debugging prompt |
 | Transcript in the wrong language, or lagging | Set `VERA_LANGUAGE`; on a slower Mac use `VERA_WHISPER_MODEL=small` |
 | No *local LLM* flags | Start Ollama and `ollama pull llama3.1:8b`; the rules work without it |
-| `address already in use` | Another copy is running on port 8000 (often Docker): stop it |
+| `address already in use`, or Docker says port 8000 is allocated | Another copy is running on port 8000: stop it (`docker compose --profile judge down`, or `lsof -nP -iTCP:8000 -sTCP:LISTEN` to find it) |
+| The Docker build or the container is killed, or the upload stops partway | Docker is short of memory: give it at least 6 GB (Docker Desktop → Settings → Resources) |
+| **Upload a call recording** is greyed out | It says why: *models still loading* (wait about 20 seconds), or *needs the full judge build* (you started the light `Dockerfile`; use `docker compose --profile judge up --build judge`) |
+| *Couldn't read this audio file* | ffmpeg couldn't decode it: export it as WAV or MP3 and upload again |
 
 </details>
 
@@ -445,8 +516,11 @@ The backend keeps web code in `routes/` and logic in `feature/`, so every featur
 
 ```text
 Veracity/
-├── Dockerfile · render.yaml           the hosted build: one container, a Render Blueprint
+├── Dockerfile.judge · docker-compose.yml   the Docker judge build with the models (compose profile judge)
+├── Dockerfile · render.yaml           the light build: sample calls only; an optional Render Blueprint
+├── docs/JUDGE_TESTING.md              how to run and test it, in short
 ├── docs/PAYPAL_SETUP.md               sandbox app, test buyer, webhooks, Payouts, deploying
+├── samples/                           short recordings to upload, with their measured results
 ├── eval/
 │   ├── transcripts.jsonl              48 written test calls: 24 scam, 24 ordinary
 │   ├── run_rules_eval.py              → eval/results.md
@@ -460,9 +534,10 @@ Veracity/
 │   │   ├── scam_rules.py              12 categories, US and Indian scripts, Hindi-tolerant matching
 │   │   ├── report.py                  risk fusion, evidence report, next steps per region
 │   │   ├── session.py · replay.py     a live call, or a sample call, through the same pipeline
+│   │   ├── upload.py · file_capture.py   an uploaded recording through the same pipeline
 │   │   └── voice.py · spectra0.py · transcriber.py · scam_llm.py   the three models (phone build)
-│   ├── app/scenarios/                 the sample calls the hosted build replays
-│   └── tests/                         114 tests; fake_paypal.py stands in for PayPal
+│   ├── app/scenarios/                 the sample calls the judge builds replay
+│   └── tests/                         134 tests; fake_paypal.py stands in for PayPal
 └── veracity-frontend/veracity/        React 19 · Vite · PayPal JS SDK v6
     └── src/components/payment/        ProtectedSend.jsx (the PayPal button), PaymentGate.jsx (the card)
 ```
@@ -474,6 +549,7 @@ Veracity/
 ### Privacy
 
 - The call's audio is analysed in memory on the laptop and **isn't saved** unless the user turns on *Save call audio*; then the report stores the file's SHA-256.
+- An **uploaded recording** is deleted as soon as ffmpeg has decoded it, and is never saved.
 - **PayPal gets the payment, never the call:** the amount, the currency, a description with the recipient's name, and the payment's and call's ids. No audio, transcript or scores.
 - The models run on the laptop. The only outside service is PayPal's.
 
@@ -485,7 +561,7 @@ Veracity/
 - **Sandbox only**, with test money.
 - **Small evidence so far:** two real calls with payments, one Hindi call, and 48 written test calls.
 - **Not proof.** *Likely AI* is a model estimate meant to warn, and every report says so. Veracity checks the caller ID the network shows, and can't unmask a spoofed number.
-- **Hardware.** The phone build needs a laptop and a USB cable, and call-audio support varies by phone.
+- **Hardware.** The phone build needs a laptop and a USB cable, and call-audio support varies by phone. In Docker the models run on the CPU, slower than real time.
 
 ---
 

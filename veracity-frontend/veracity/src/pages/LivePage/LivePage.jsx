@@ -7,6 +7,8 @@
  * its timeline, the transcript, the red flags. The red banner appears on the
  * alert event; a held payment appears full width under it.
  * "End call & build report" stops capture and keeps the report for Step 4.
+ * An uploaded recording (the full judge build) uses this same page: it starts with
+ * POST /api/session/upload, and says when the file has played to the end.
  */
 import { useEffect } from 'react'
 import Panel from '../../components/ui/Panel'
@@ -31,12 +33,13 @@ import './LivePage.css'
  * @param {object}   props.health         GET /api/health result, for the capture line
  * @param {boolean}  props.saveAudio      the Step 1 privacy toggle
  * @param {object}   props.scenario       the replayed call picked in Step 2, or null
+ * @param {File}     props.recording      the call recording picked in Step 2 to upload, or null
  * @param {object}   props.payments       usePayments(live.sessionId)
  * @param {object}   props.paymentConfig  GET /api/payment/config, or null
  * @param {Function} props.onBack         back to Step 2 (only before or after a call)
  * @param {Function} props.onContinue     go to Step 4 · Report
  */
-export default function LivePage({ live, number, health, saveAudio, scenario, payments, paymentConfig, onBack, onContinue }) {
+export default function LivePage({ live, number, health, saveAudio, scenario, recording, payments, paymentConfig, onBack, onContinue }) {
   const callerNumber = number?.e164_format ?? scenario?.caller_number ?? ''
   const { status, start } = live
   const isLive = status === 'live' || status === 'stopping'
@@ -44,8 +47,8 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
 
   // Arriving at this step is the "Start monitoring" moment
   useEffect(() => {
-    if (status === 'idle') start({ callerNumber, saveAudio, number, scenario: scenarioId })
-  }, [status, start, callerNumber, saveAudio, number, scenarioId])
+    if (status === 'idle') start({ callerNumber, saveAudio, number, scenario: scenarioId, recording })
+  }, [status, start, callerNumber, saveAudio, number, scenarioId, recording])
 
   const heard = live.series.some((point) => !point.gap)
   const aiSince = live.series.find((point) => point.state === 'LIKELY_AI')?.t ?? null
@@ -56,16 +59,24 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
     <main className="live-page">
       <header className="live-page__intro">
         <div className="live-page__who">
-          <p className="t-overline muted">STEP 3 OF 4 · {status === 'ended' ? 'CALL ENDED' : live.replay ? 'REPLAYED CALL' : 'MONITORING'}</p>
+          <p className="t-overline muted">
+            STEP 3 OF 4 · {status === 'ended' ? 'CALL ENDED' : live.replay ? 'REPLAYED CALL' : live.upload || recording ? 'UPLOADED RECORDING' : 'MONITORING'}
+          </p>
           <h1 className="live-page__number">{callerNumber || 'Unknown number'}</h1>
           <p className="t-code muted live-page__capture">{captureLine(live, health)}</p>
+          {/* Shown here, not only in the banner: a scam alert takes the banner's place */}
+          {live.upload && live.audioDone && status === 'live' && (
+            <p className="t-label live-page__recording-done" role="status">
+              Recording finished. End call & build report.
+            </p>
+          )}
         </div>
         <div className="live-page__actions">
-          <PrimaryAction live={live} onBack={onBack} onContinue={onContinue} callerNumber={callerNumber} saveAudio={saveAudio} number={number} scenarioId={scenarioId} />
+          <PrimaryAction live={live} onBack={onBack} onContinue={onContinue} callerNumber={callerNumber} saveAudio={saveAudio} number={number} scenarioId={scenarioId} recording={recording} />
         </div>
       </header>
 
-      <Banner live={live} />
+      <Banner live={live} uploading={Boolean(recording)} />
 
       {decided.length > 0 && (
         <div className="live-page__gates">
@@ -119,7 +130,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
             {noVoiceScore ? (
               <p className="t-body-sm muted">
                 A scripted replay has no audio, so there is no AI-voice score, and Veracity doesn’t invent one. On a
-                real call the wav2vec2 model scores the caller’s voice every second.
+                real call the Spectra-0 model scores the caller’s voice every second.
               </p>
             ) : (
               <div className="live-page__voice">
@@ -150,13 +161,17 @@ export default function LivePage({ live, number, health, saveAudio, scenario, pa
 }
 
 /** The one primary button: end the call while live, then go to the report. */
-function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, number, scenarioId }) {
+function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, number, scenarioId, recording }) {
   switch (live.status) {
     case 'idle':
     case 'starting':
       return (
         <Button variant="primary" icon="phone-off" disabled>
-          Starting capture…
+          {!recording
+            ? 'Starting capture…'
+            : live.uploadProgress === null || live.uploadProgress >= 1
+              ? 'Reading the recording…'
+              : `Uploading… ${Math.round(live.uploadProgress * 100)}%`}
         </Button>
       )
     case 'live':
@@ -183,7 +198,7 @@ function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, numb
           <Button variant="ghost" onClick={onBack}>
             Back
           </Button>
-          <Button variant="primary" icon="refresh" onClick={() => live.start({ callerNumber, saveAudio, number, scenario: scenarioId })}>
+          <Button variant="primary" icon="refresh" onClick={() => live.start({ callerNumber, saveAudio, number, scenario: scenarioId, recording })}>
             Try again
           </Button>
         </>
@@ -199,7 +214,7 @@ const ALERT_REASON = {
 }
 
 /** At most one banner: a scam alert beats everything else, and names every reason heard so far. */
-function Banner({ live }) {
+function Banner({ live, uploading }) {
   const scam = SCAM_ALERTS.map((kind) => live.alerts[kind]).filter(Boolean)
   if (scam.length === 1) {
     return (
@@ -228,6 +243,13 @@ function Banner({ live }) {
       </AlertBanner>
     )
   }
+  if (live.status === 'error' && uploading) {
+    return (
+      <AlertBanner tone="caution" title="Couldn’t analyse this recording">
+        {live.error?.message} Go back to pick another file, or try again.
+      </AlertBanner>
+    )
+  }
   if (live.status === 'error') {
     return (
       <AlertBanner tone="caution" title="Couldn’t monitor this call">
@@ -239,6 +261,23 @@ function Banner({ live }) {
     return (
       <AlertBanner tone="caution" title="Lost the live stream">
         The backend stopped sending updates. End the call to keep what was found so far.
+      </AlertBanner>
+    )
+  }
+  if (live.upload && live.audioDone && live.status !== 'ended') {
+    return (
+      <AlertBanner tone="info" title="Recording finished. End call & build report.">
+        {live.upload.filename} has played to the end. Ending the call decides any payment made during it, then builds
+        the report.
+      </AlertBanner>
+    )
+  }
+  if (live.upload) {
+    return (
+      <AlertBanner tone="info" title={`Uploaded recording: ${live.upload.filename}`}>
+        Analysed as it plays, like a live call: the Spectra-0 voice model, Whisper and the scam rules
+        {live.upload.llm ? ' and the local LLM' : ' (no local LLM here)'}. On this machine’s CPU it can run slower than
+        the recording. Protected Send uses the real PayPal sandbox.
       </AlertBanner>
     )
   }
@@ -294,6 +333,13 @@ function NumberSummary({ number }) {
 /** "voice-call-downlink via scrcpy · BlackHole 2ch · 48 kHz → 16 kHz · session 7f3a91c2" */
 function captureLine(live, health) {
   if (live.demo) return 'demo replay in the browser · no audio captured'
+  if (live.upload) {
+    const { filename, duration_s: duration, llm } = live.upload
+    const parts = [`uploaded recording · ${filename} · ${duration} s`, 'Spectra-0 + Whisper']
+    parts.push(llm ? 'rules + local LLM' : 'rules only, no local LLM')
+    if (live.sessionId) parts.push(`session ${live.sessionId.slice(0, 8)}`)
+    return parts.join(' · ')
+  }
   if (live.replay) {
     const parts = [`replay · ${live.replay.source === 'recorded' ? 'recorded call' : 'scripted transcript'}`, 'real scam rules']
     if (live.sessionId) parts.push(`session ${live.sessionId.slice(0, 8)}`)
