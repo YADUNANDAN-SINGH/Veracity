@@ -577,7 +577,7 @@ Veracity/
 
 - **In the product:** the Spectra-0 anti-spoofing model, Whisper large-v3-turbo (faster-whisper) and Llama 3.1 8B (Ollama), as described in [AI](#ai). The scam rules, risk fusion and payment gate are plain code, so every decision can be explained with the caller's own words.
 <!-- TODO: list the AI assistants you used to build Veracity (for example as a coding assistant) and what they helped with; the hackathon asks for this -->
-- **To build it:** `AI_ASSISTANTS_USED`
+- **To build it:** I used two AI agents: 1. [Claude](https://claude.ai/) for code writing 2. [Antigravity](https://antigravity.google/) for UI polish and Debugging.
 
 ---
 
