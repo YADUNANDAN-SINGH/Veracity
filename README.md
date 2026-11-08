@@ -581,10 +581,7 @@ Veracity/
 
 ---
 
-## Team and credits
-
-<!-- TODO: team names, roles and links -->
-`TEAM_NAMES`
+## Credits
 
 Built on [scrcpy](https://github.com/Genymobile/scrcpy), [BlackHole](https://github.com/ExistentialAudio/BlackHole), [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Ollama](https://ollama.com/), [Hugging Face Transformers](https://github.com/huggingface/transformers), [python-phonenumbers](https://github.com/daviddrysdale/python-phonenumbers), [FastAPI](https://fastapi.tiangolo.com/), [React](https://react.dev/), [Vite](https://vite.dev/), [@paypal/react-paypal-js](https://github.com/paypal/react-paypal-js) and the [PayPal REST APIs](https://developer.paypal.com/api/rest/).
 
