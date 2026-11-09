@@ -26,7 +26,7 @@
 There's no hosted demo: Veracity runs on your own machine, with the real models, from one command. The same steps in short form are in [docs/JUDGE_TESTING.md](docs/JUDGE_TESTING.md).
 
 <!-- TODO: replace VIDEO_URL with the YouTube link -->
-**Demo video:** `VIDEO_URL`
+**Demo video:** [Demo Video](https://youtu.be/7DbctZZKWP8?si=rJNUZ2vsWjvs9AYc)
 
 There are two ways to test it:
 
