@@ -68,7 +68,7 @@
 /*
  * Phones: three rows, so nothing runs off the side.
  *   logo ············ theme · call status
- *   mode pill · Offline / Hosted demo
+ *   mode pill · Offline / On this machine
  *   step progress
  */
 @media (max-width: 640px) {

@@ -5,6 +5,7 @@
 #   POST /api/session/{id}/say   { text } → a replayed call hears it as the caller's words
 #   GET  /api/session/{id}/risk  → the call's fused risk so far
 #   GET  /api/session/scenarios  → calls that can be replayed without a phone
+#   GET  /api/session/scenarios/{id}/audio  → a recorded scenario's audio file, to play along with its replay
 #   WS   /ws/live/{id}           the call's events; late joiners get the history replayed
 #
 # Judge mode (VERA_MODE=judge) and VERA_FAKE=1 always replay a scenario
@@ -20,6 +21,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.feature import payment_gate, reports_db, upload
@@ -27,7 +29,7 @@ from app.feature.audio_capture import AudioDeviceError
 from app.feature import file_capture
 from app.feature.file_capture import DecodeError, FileCapture, TooLong
 from app.feature.number_intelligence import DEFAULT_REGION
-from app.feature.replay import ReplaySession, ScenarioNotFound, list_scenarios, load_scenario
+from app.feature.replay import ReplaySession, ScenarioNotFound, audio_path, audio_type, list_scenarios, load_scenario
 from app.feature.session import Session
 
 router = APIRouter(tags=["session"])
@@ -78,6 +80,18 @@ def finish(session: Session) -> dict:
 @router.get("/api/session/scenarios")
 def scenarios():
     return {"default": DEFAULT_SCENARIO, "always_replay": ALWAYS_REPLAY, "scenarios": list_scenarios()}
+
+
+@router.get("/api/session/scenarios/{scenario_id}/audio")
+def scenario_audio(scenario_id: str):
+    try:
+        path = audio_path(load_scenario(scenario_id))
+    except ScenarioNotFound as e:
+        raise HTTPException(status_code=404, detail="No scenario with that id.") from e
+    if path is None:
+        raise HTTPException(status_code=404, detail="This scenario has no recording here.")
+    # Answers Range requests, so the browser can seek to the replay's position
+    return FileResponse(path, media_type=audio_type(path))
 
 
 @router.post("/api/session/start", response_model=StartResponse)

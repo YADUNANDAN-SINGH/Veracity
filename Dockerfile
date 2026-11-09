@@ -1,12 +1,13 @@
-# Veracity's hosted judge build: the dashboard and the API in one container.
+# Veracity's light judge build: the dashboard and the API in one container.
 # No phone and no models: calls are replayed scenarios run through the real scam
-# rules, and Protected Send uses the real PayPal sandbox.
+# rules, and Protected Send uses the real PayPal sandbox. For the real models and
+# uploaded recordings, use Dockerfile.judge (docs/JUDGE_TESTING.md).
 #
 #   docker build -t veracity .
 #   docker run --rm -p 8000:8000 veracity                       → http://localhost:8000
 #   docker run --rm -p 8000:8000 -e PAYPAL_CLIENT_ID=... -e PAYPAL_CLIENT_SECRET=... veracity
 #
-# Render builds this file (render.yaml). The phone build runs natively on a Mac (README, "Run it yourself").
+# The phone build runs natively on a Mac (README, "Run it yourself").
 
 # ---- the dashboard, built once ----
 FROM node:22-alpine AS web
@@ -23,9 +24,11 @@ COPY veracity-backend/requirements-judge.txt ./
 RUN pip install --no-cache-dir -r requirements-judge.txt
 COPY veracity-backend/ ./
 COPY --from=web /web/dist ./static
+COPY docs/Audio/*.mp3 ./sample_audio/
 ENV VERA_MODE=judge \
     VERA_REGION=US \
     VERA_STATIC_DIR=/app/static \
+    VERA_SAMPLE_AUDIO_DIR=/app/sample_audio \
     PORT=8000
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]

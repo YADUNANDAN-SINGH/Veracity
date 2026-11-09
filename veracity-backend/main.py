@@ -15,7 +15,7 @@ from app.routes import call, health, number, payment, report, session
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 JUDGE_MODE = os.environ.get("VERA_MODE") == "judge"
-# The built dashboard (npm run build → dist/), served by this app in the hosted judge build
+# The built dashboard (npm run build → dist/), served by this app in the judge builds
 STATIC_DIR = Path(os.environ["VERA_STATIC_DIR"]).resolve() if os.environ.get("VERA_STATIC_DIR") else None
 SWEEP_EVERY_S = 60
 

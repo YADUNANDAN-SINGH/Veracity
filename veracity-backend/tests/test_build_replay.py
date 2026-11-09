@@ -3,6 +3,8 @@
 
 import hashlib
 import json
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -74,3 +76,15 @@ def test_the_recorded_scenario_replays_its_real_scores(tmp_path, monkeypatch):
     assert report["call"]["capture_method"] == "replay_recorded"
     assert report["voice"]["final_state"] == "LIKELY_AI" and report["voice"]["max_p_ai"] == pytest.approx(0.95)
     assert report["overall"]["risk_level"] == "HIGH"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg isn't installed")
+def test_any_format_ffmpeg_reads_can_be_built_and_keeps_its_file_name(tmp_path):
+    wav = recording(tmp_path / "call.wav")
+    mp3 = tmp_path / "call.mp3"
+    subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(wav), str(mp3)], check=True)
+    scenario = build_replay.build(mp3, "grandparent_us", detector=AlwaysAI(), transcribe=lambda audio: "Hi, it's me.",
+                                  audio_file="call.mp3")
+    assert scenario["audio_file"] == "call.mp3"
+    assert scenario["voice"]["recording_sha256"] == hashlib.sha256(mp3.read_bytes()).hexdigest()  # the file itself
+    assert scenario["voice"]["recording_seconds"] == pytest.approx(17, abs=0.2)

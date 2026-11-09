@@ -9,6 +9,8 @@
 #   red flags    the real scam rules (and the local LLM, if it's running) on each line, live
 #   AI voice     only when the scenario holds scores the real model produced on a
 #                recording (scripts/build_replay.py); a scripted call has no voice score
+#   audio        a recorded scenario can name its file (audio_file): the dashboard plays
+#                it along with the replay, from GET /api/session/scenarios/{id}/audio
 #   say()        a line the user types, treated as if the caller had just said it
 #
 # Scenario files live in app/scenarios/<id>.json (format: app/scenarios/README.md).
@@ -21,9 +23,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.feature.session import Session
+from app.feature.session import Session, voice_event
 
 SCENARIO_DIR = Path(__file__).resolve().parent.parent / "scenarios"
+# The recordings: docs/Audio in the repo, a folder of its own in the judge images
+SAMPLE_AUDIO_DIR = Path(os.environ.get("VERA_SAMPLE_AUDIO_DIR") or Path(__file__).resolve().parents[3] / "docs" / "Audio")
 TICK_S = 0.1
 SPEED = float(os.environ.get("VERA_REPLAY_SPEED", "1"))  # 2 plays a call twice as fast; the tests use more
 _ID = re.compile(r"^[a-z0-9_]{1,40}$")
@@ -44,6 +48,28 @@ def load_scenario(scenario_id: str) -> dict:
     return scenario
 
 
+def audio_path(scenario: dict) -> Path | None:
+    """The scenario's recording, if it names one and this build has it."""
+    name = scenario.get("audio_file")
+    path = SAMPLE_AUDIO_DIR / Path(name).name if name else None  # .name: only ever a file in that folder
+    return path if path is not None and path.is_file() else None
+
+
+def audio_type(path: Path) -> str:
+    """From the file's first bytes, not its name: a phone's recording can be M4A (AAC in MP4) called .mp3."""
+    with path.open("rb") as f:
+        return "audio/mp4" if f.read(12)[4:8] == b"ftyp" else "audio/mpeg"
+
+
+def audio_url(scenario: dict) -> str | None:
+    return f"/api/session/scenarios/{scenario['id']}/audio" if audio_path(scenario) else None
+
+
+def duration_s(scenario: dict) -> float:
+    recorded = (scenario.get("voice") or {}).get("recording_seconds")
+    return recorded or max((line["t"] for line in scenario["lines"]), default=0)
+
+
 def list_scenarios(region: str | None = None) -> list[dict]:
     """Every scenario (or one region's), described for the scenario picker."""
     out = []
@@ -59,7 +85,8 @@ def list_scenarios(region: str | None = None) -> list[dict]:
             "caller_number": s.get("caller_number"),
             "source": s.get("source", "scripted"),
             "voice_scored": bool((s.get("voice") or {}).get("windows")),
-            "duration_s": max((line["t"] for line in s["lines"]), default=0),
+            "audio_url": audio_url(s),
+            "duration_s": duration_s(s),
             "payment": s.get("payment"),
             "order": s.get("order", 99),
         })
@@ -87,7 +114,7 @@ class ReplaySession(Session):
         self._publish({
             "type": "mode", "replay": True, "scenario": self.scenario["id"], "title": self.scenario["title"],
             "source": self.scenario.get("source", "scripted"), "voice_scored": bool(self._voice),
-            "region": self.region,
+            "audio_url": audio_url(self.scenario), "duration_s": duration_s(self.scenario), "region": self.region,
         })
         self._replay.start()
 
@@ -102,6 +129,7 @@ class ReplaySession(Session):
     def _run_replay(self) -> None:
         tick = line_i = level_i = 0
         last = max([line["t"] for line in self._lines] + [lv["t"] for lv in self._levels] + list(self._voice), default=0)
+        recording_over = not self._voice  # a scripted call has no recording to run out
         while not self._stop.is_set():
             tick += 1
             t = round(tick * TICK_S, 1)
@@ -114,13 +142,14 @@ class ReplaySession(Session):
                 if second in self._voice:
                     self._record_voice(second, self._voice[second])
                 else:  # a pause in the recording: keep the verdict, draw a gap
-                    vs = self.smoother.update(None)
-                    self._publish({"type": "voice", "t": second, "p_ai": None, "smoothed": vs.smoothed,
-                                   "state": vs.state, "speech": False})
+                    self._publish(voice_event(second, None, self.smoother.update(None)))
             while line_i < len(self._lines) and self._lines[line_i]["t"] <= t:
                 line = self._lines[line_i]
                 self._on_text(float(line["t"]), line["text"])
                 line_i += 1
+            if not recording_over and t > last:  # the same event as an uploaded recording that has played out
+                recording_over = True
+                self._publish({"type": "audio_done", "t": last})
             # Sleep to the next tick on the clock, so the replay doesn't drift
             time.sleep(max(0.0, self._t0 + (t + TICK_S) / self._speed - time.monotonic()))
 

@@ -7,7 +7,8 @@
  * what to do next (call the person back on a saved number), and the two
  * decisions. Always, under Details: the PayPal ids and the audit trail of every
  * PayPal call, webhook and decision, so anyone can check that PayPal really
- * holds or released the money.
+ * holds or released the money. A payment the in-memory stand-in answered for
+ * (no sandbox keys) says so wherever it would otherwise say PayPal.
  */
 import { useEffect, useState } from 'react'
 import Badge from '../ui/Badge'
@@ -24,7 +25,7 @@ const SOURCE_LABEL = { paypal_api: 'PayPal API', webhook: 'Webhook', veracity: '
 const STATUS_ICON = { CREATED: 'clock', HELD: 'lock', CAPTURED: 'check-circle', PAID_OUT: 'check-circle', VOIDED: 'x-circle' }
 // The pill keeps its tone's risk icon, except where the neutral "?" would mislead
 const PILL_ICON = { CREATED: 'clock', VOIDED: 'x-circle' }
-const HOLD_NOTE = { call_active: 'Until the call ends', verify: 'Until you call back', likely_scam: 'Likely scam' }
+const HOLD_NOTE = { call_active: 'Until the call ends', verify: 'Until you call back', likely_scam: 'Likely scam', release_pending: 'Waiting for PayPal' }
 
 /**
  * @param {object}   props
@@ -44,7 +45,7 @@ export default function PaymentGate({ payment, busy, onVerify, onCancel }) {
         <div className="gate__title">
           <p className="gate__eyebrow t-overline muted">
             <Icon name="shield" size={14} />
-            PROTECTED SEND · PAYPAL SANDBOX
+            PROTECTED SEND · {payment.paypal.environment === 'standin' ? 'PAYPAL STAND-IN, NOT PAYPAL' : 'PAYPAL SANDBOX'}
           </p>
           <h2 className="gate__heading">
             <span className="gate__amount">{formatMoney(payment.amount, payment.currency)}</span>
@@ -90,7 +91,7 @@ function Journey({ payment, tone }) {
 
   const steps = [
     {
-      label: 'Approved in PayPal',
+      label: payment.paypal.environment === 'standin' ? 'Approved in the stand-in' : 'Approved in PayPal',
       ...(payment.status === 'CREATED'
         ? { state: 'current', note: 'Waiting for approval' }
         : notReached === 'skipped'
@@ -114,7 +115,7 @@ function Journey({ payment, tone }) {
           : {
               label: 'Released or cancelled',
               state: 'upcoming',
-              note: payment.status !== 'HELD' ? null : coolingOff ? 'After the cooling-off' : 'After you call back',
+              note: payment.status !== 'HELD' ? null : payment.hold_reason === 'release_pending' ? 'When PayPal answers' : coolingOff ? 'After the cooling-off' : 'After you call back',
             },
   ]
 
@@ -196,12 +197,18 @@ function NextStep({ payment, contact, busy, onVerify, onCancel }) {
   // The caller may still be listening: hang up before anyone confirms
   const waitingForCall = payment.hold_reason === 'call_active' || payment.call_live
   const coolingOff = payment.verification === 'confirmed' && payment.release_at
+  const releasing = payment.hold_reason === 'release_pending'
 
   return (
     <div className="gate__next">
       <div className="gate__instruction">
-        <Icon name={coolingOff ? 'clock' : waitingForCall ? 'phone-off' : 'phone'} size={18} />
-        {waitingForCall ? (
+        <Icon name={coolingOff || releasing ? 'clock' : waitingForCall ? 'phone-off' : 'phone'} size={18} />
+        {releasing ? (
+          <p>
+            <strong>Nothing to do.</strong> No money has moved. Veracity asks PayPal again{' '}
+            {payment.release_at ? <Countdown until={payment.release_at} /> : 'soon'}, by itself.
+          </p>
+        ) : waitingForCall ? (
           <p>
             <strong>Hang up first.</strong> Then call {contact} back on{' '}
             {payment.contact_number ? <span className="t-code">{payment.contact_number}</span> : 'a number saved in your phone'},
@@ -241,7 +248,7 @@ function NextStep({ payment, contact, busy, onVerify, onCancel }) {
       )}
       {payment.expires_at && (
         <p className="t-body-sm muted">
-          If nobody releases it, PayPal’s hold is cancelled automatically on {formatDateTime(payment.expires_at)}.
+          If nobody releases it, {payment.paypal.environment === 'standin' ? 'the' : 'PayPal’s'} hold is cancelled automatically on {formatDateTime(payment.expires_at)}.
         </p>
       )}
     </div>
@@ -251,23 +258,24 @@ function NextStep({ payment, contact, busy, onVerify, onCancel }) {
 /** The PayPal ids and the audit trail, folded away: the order id stays visible on the fold. */
 function Details({ payment }) {
   const events = payment.events ?? []
+  const order = payment.paypal.environment === 'standin' ? 'Stand-in order' : 'PayPal order'
   return (
     <details className="gate__details">
       <summary>
         <Icon name="chevron-right" size={16} className="gate__chevron" />
         <span className="t-label">Details</span>
         <span className="t-code muted gate__details-hint">
-          PayPal order {payment.paypal.order_id ?? '—'} · {events.length} {events.length === 1 ? 'event' : 'events'}
+          {order} {payment.paypal.order_id ?? '—'} · {events.length} {events.length === 1 ? 'event' : 'events'}
         </span>
       </summary>
       <div className="gate__details-body">
         <dl className="gate__ids t-body-sm">
-          <Id label="PayPal order" value={payment.paypal.order_id} />
+          <Id label={order} value={payment.paypal.order_id} />
           <Id label="Authorization" value={payment.paypal.authorization_id} />
           {payment.paypal.capture_id && <Id label="Capture" value={payment.paypal.capture_id} />}
           {payment.paypal.payout_batch_id && <Id label="Payout batch" value={payment.paypal.payout_batch_id} />}
         </dl>
-        <Trail events={events} />
+        <Trail events={events} standin={payment.paypal.environment === 'standin'} />
       </div>
     </details>
   )
@@ -283,16 +291,20 @@ function Id({ label, value }) {
 }
 
 /** Every PayPal call, webhook and decision, oldest first. */
-function Trail({ events }) {
+function Trail({ events, standin }) {
   if (events.length === 0) return null
   return (
     <div className="gate__trail">
-      <p className="t-overline muted">PAYPAL ACTIVITY · {events.length}</p>
+      <p className="t-overline muted">
+        {standin ? 'STAND-IN ACTIVITY: THE SAME API CALLS, ANSWERED LOCALLY, NOT BY PAYPAL' : 'PAYPAL ACTIVITY'} · {events.length}
+      </p>
       <ol>
         {events.map((event, i) => (
           <li key={i} className="t-body-sm">
             <span className="t-code muted">{formatWallClock(event.at, true)}</span>
-            <span className={`gate__source gate__source--${event.source}`}>{SOURCE_LABEL[event.source] ?? event.source}</span>
+            <span className={`gate__source gate__source--${event.source}`}>
+              {standin && event.source === 'paypal_api' ? 'Stand-in' : (SOURCE_LABEL[event.source] ?? event.source)}
+            </span>
             <span>{event.kind}</span>
             {event.detail && <TrailDetail detail={event.detail} />}
           </li>

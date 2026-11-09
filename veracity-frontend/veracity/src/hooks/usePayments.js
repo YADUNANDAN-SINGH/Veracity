@@ -3,7 +3,8 @@
  *
  * create() and approve() are what the PayPal button calls: create the order
  * (intent AUTHORIZE), then, once the payer approves in PayPal, authorize it so
- * the payment gate can decide. The call's payments are polled every few seconds
+ * the payment gate can decide. payWithStandIn() does all of it when the in-memory
+ * stand-in answers instead of PayPal (no sandbox keys). The call's payments are polled every few seconds
  * while the call is on or a payment is still open, because a hold can change on
  * its own (it escalates if the call turns into a scam, it is released when a
  * cooling-off ends, PayPal webhooks update it), and so that a payment made for
@@ -11,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  authorizePayment, cancelPayment, createPayment, fetchPaymentConfig, isOpen, listPayments, verifyPayment,
+  approveStandIn, authorizePayment, cancelPayment, createPayment, fetchPaymentConfig, isOpen, listPayments, verifyPayment,
 } from '../api/payment'
 
 const POLL_MS = 2500
@@ -103,6 +104,21 @@ export function usePayments(sessionId, ended = false) {
     [upsert],
   )
 
+  /** No sandbox keys: the same steps, with the stand-in in place of the payer in PayPal's pop-up. */
+  const payWithStandIn = useCallback(
+    async (form) => {
+      const orderId = await create(form)
+      try {
+        await approveStandIn(orderId)
+      } catch (err) {
+        setError(err)
+        throw err
+      }
+      return approve(orderId)
+    },
+    [create, approve],
+  )
+
   /** The payer closed the PayPal pop-up: drop the order that was never approved. */
   const abandon = useCallback(() => {
     const id = pendingRef.current
@@ -128,7 +144,7 @@ export function usePayments(sessionId, ended = false) {
   const verify = useCallback((id, outcome) => act(id, () => verifyPayment(id, outcome)), [act])
   const cancel = useCallback((id) => act(id, () => cancelPayment(id)), [act])
 
-  return { payments, error, busy, create, approve, abandon, verify, cancel, clearError: () => setError(null) }
+  return { payments, error, busy, create, approve, payWithStandIn, abandon, verify, cancel, clearError: () => setError(null) }
 }
 
 /** GET /api/payment/config once; null until it arrives (or if the backend has no payments). */

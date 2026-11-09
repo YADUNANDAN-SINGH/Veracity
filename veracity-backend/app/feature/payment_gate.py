@@ -9,7 +9,9 @@
 #                       cooling-off ends, void a hold that has run out
 #   sweep()             refresh() for every held payment, once a minute from main.py, so holds
 #                       run out and cooling-offs end even when nobody has the dashboard open
-#   on_session_ended()  holds that were waiting for the call to end are decided with the final report
+#   on_session_ended()  holds that were waiting for the call to end are decided with the final report.
+#                       If PayPal can't release one, it stays held (release_pending) and refresh() retries it,
+#                       so ending a call always gets its report
 #   apply_webhook()     PayPal is the source of truth for captures, voids and payouts
 #
 # Release = capture the authorization (and, with PAYPAL_PAYOUTS=1, forward it to the
@@ -27,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from app.feature import payments_db, scam_rules
-from app.feature.paypal_client import PayPalError, get_client
+from app.feature.paypal_client import PayPalError, environment_of, get_client
 from app.feature.report import top_flags
 
 log = logging.getLogger("veracity.gate")
@@ -37,6 +39,10 @@ COOL_OFF_MIN = float(os.environ.get("VERA_COOL_OFF_MIN", "15"))
 PAYOUTS_ENABLED = os.environ.get("PAYPAL_PAYOUTS") == "1"
 CURRENCIES = {"USD", "GBP", "EUR", "CAD", "AUD"}
 MAX_AMOUNT = Decimal("10000.00")
+# A release PayPal couldn't do when the call ended: try again after this long, doubling each time
+RELEASE_RETRY_FIRST_S = 15
+RELEASE_RETRY_MAX_S = 3600
+RELEASE_DELAYED = "Release delayed: PayPal didn't complete it"
 
 # Why a payment is held, in the words the user sees ({contact} and {minutes} are filled in)
 POLICY = {
@@ -51,6 +57,10 @@ POLICY = {
     "likely_scam": (
         "Held: this call matched a known scam. Call {contact} back on a saved number. Even if they "
         "confirm, the money waits {minutes} minutes before it is released."
+    ),
+    "release_pending": (
+        "The call checked out, so this payment is being released, but PayPal didn't complete it. No money has "
+        "moved. Veracity keeps trying by itself until the hold runs out, and you can cancel at any time."
     ),
 }
 
@@ -292,6 +302,8 @@ def refresh(payment_id: str) -> dict:
         release_at = _parse(payment["release_at"])
         if payment["verification"] == "confirmed" and release_at and now >= release_at:
             return _release(payment, "Confirmed on a callback and the cooling-off is over.")
+        if payment["hold_reason"] == "release_pending" and (release_at is None or now >= release_at):
+            return _release_or_retry(payment, "The call checked out, and PayPal completed the release on a later try.")
         if payment["hold_reason"] == "call_active" and payment["session_id"]:
             risk = _risk_provider(payment["session_id"])
             if risk and gate_level(risk)[0] == "HIGH":
@@ -315,19 +327,23 @@ def sweep() -> int:
 
 
 def on_session_ended(session_id: str, report: dict) -> list[dict]:
-    """Decide the holds that were waiting for this call to end; returns the call's payments."""
+    """Decide the holds that were waiting for this call to end; returns the call's payments.
+
+    Never fails because of PayPal: the call is over and its report is what the payer needs next.
+    """
     risk = risk_from_report(report)
     for payment in payments_db.list_payments(session_id):
-        if payment["status"] != "HELD" or payment["hold_reason"] != "call_active":
-            continue
         with _lock(payment["payment_id"]):
+            payment = _get(payment["payment_id"])  # ending a call can be retried: only decide what is still waiting
+            if payment["status"] != "HELD" or payment["hold_reason"] != "call_active":
+                continue
             status, reason, why = decide(risk)
             payments_db.add_event(payment["payment_id"], "veracity", "Decision after the call", {
                 "outcome": "release" if status == "CAPTURED" else "hold", "hold_reason": reason, "why": why,
                 "risk_level": risk["level"], "risk_score": risk["score"],
             })
             if status == "CAPTURED":
-                _release(payments_db.update_payment(payment["payment_id"], risk_json=_with_gate(risk)), why)
+                _release_or_retry(payments_db.update_payment(payment["payment_id"], risk_json=_with_gate(risk)), why)
             else:
                 payments_db.update_payment(payment["payment_id"], hold_reason=reason, risk_json=_with_gate(risk))
     return [view(p) for p in payments_db.list_payments(session_id)]
@@ -386,6 +402,20 @@ def _release(payment: dict, why: str) -> dict:
     if PAYOUTS_ENABLED and payment["recipient_email"]:
         payment = _payout(payment)
     return payment
+
+
+def _release_or_retry(payment: dict, why: str) -> dict:
+    """Release now. If that fails, stay held and let refresh() try again: nothing has moved, and PayPal-Request-Id
+    makes a retry safe even if PayPal did the capture and only its answer was lost."""
+    pid = payment["payment_id"]
+    try:
+        return _release(payment, why)
+    except Exception as e:  # noqa: BLE001  whatever went wrong, the money is safely held and the call can still end
+        log.warning("Couldn't release payment %s: %s", pid, e)
+        earlier = sum(event["kind"] == RELEASE_DELAYED for event in payments_db.list_events(pid))
+        retry_at = _now() + timedelta(seconds=min(RELEASE_RETRY_FIRST_S * 2 ** earlier, RELEASE_RETRY_MAX_S))
+        payments_db.add_event(pid, "veracity", RELEASE_DELAYED, {"why": str(e), "retry_at": _iso(retry_at)})
+        return payments_db.update_payment(pid, hold_reason="release_pending", release_at=_iso(retry_at))
 
 
 def _payout(payment: dict) -> dict:
@@ -466,6 +496,7 @@ def view(payment: dict) -> dict:
         "contact_number": payment["contact_number"],
         "note": payment["note"],
         "paypal": {
+            "environment": environment_of(payment["order_id"]),
             "order_id": payment["order_id"],
             "authorization_id": payment["authorization_id"],
             "capture_id": payment["capture_id"],
@@ -478,8 +509,8 @@ def view(payment: dict) -> dict:
         "created_at": payment["created_at"],
         "updated_at": payment["updated_at"],
         "call_live": live,
-        # Confirming needs the call to be over; cancelling never waits
-        "can_verify": held and reason != "call_active" and payment["verification"] != "confirmed" and not live,
+        # Confirming needs the call to be over, and a release already on its way needs no callback; cancelling never waits
+        "can_verify": held and reason not in ("call_active", "release_pending") and payment["verification"] != "confirmed" and not live,
         "can_cancel": payment["status"] in ("CREATED", "HELD"),
         "events": payments_db.list_events(payment["payment_id"]),
     }

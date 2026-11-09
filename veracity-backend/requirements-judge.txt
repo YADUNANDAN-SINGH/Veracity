@@ -1,4 +1,4 @@
-# The hosted judge build (Dockerfile at the repo root): replayed calls, the real
+# The light judge build (Dockerfile at the repo root): replayed calls, the real
 # scam rules and the PayPal sandbox. No audio input and no models.
 # Pinned (Python 3.12, the Dockerfile's) so a new release can't break a rebuild during judging.
 fastapi==0.162.0

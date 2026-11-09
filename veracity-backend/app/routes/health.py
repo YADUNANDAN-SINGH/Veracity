@@ -20,7 +20,7 @@ from app.feature.number_intelligence import DEFAULT_REGION
 
 router = APIRouter(prefix="/api", tags=["health"])
 
-# "judge": the hosted demo (no phone, no models, replayed calls); "local": the full Mac build
+# "judge": the Docker judge builds (no phone; no phone checks); "local": the full Mac build
 MODE = "judge" if os.environ.get("VERA_MODE") == "judge" else "local"
 
 # The input Python records from; VERA_AUDIO_DEVICE overrides it for the
@@ -112,6 +112,7 @@ def _upload() -> dict:
 def health(request: Request):
     paypal = {
         "configured": paypal_client.configured(),
+        "standin": paypal_client.standin_active(),  # no keys: the in-memory stand-in answers instead of PayPal
         "webhooks": bool(os.environ.get("PAYPAL_WEBHOOK_ID")),
         "payouts": payment_gate.PAYOUTS_ENABLED,
     }
@@ -119,7 +120,7 @@ def health(request: Request):
     buyer = None
     if os.environ.get("VERA_SANDBOX_BUYER_EMAIL"):
         buyer = {"email": os.environ["VERA_SANDBOX_BUYER_EMAIL"], "password": os.environ.get("VERA_SANDBOX_BUYER_PASSWORD")}
-    if MODE == "judge":  # nothing to check on a server: no phone, no audio input, no local models
+    if MODE == "judge":  # nothing to check: no phone, no audio input
         return {"status": "ok", "mode": MODE, "region": DEFAULT_REGION, "fake_mode": False, "paypal": paypal,
                 "sandbox_buyer": buyer, "upload": _upload()}
 

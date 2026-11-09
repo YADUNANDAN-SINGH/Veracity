@@ -14,6 +14,9 @@
 # request can't authorize, capture or void twice. Each call returns the
 # response body and a short record of the call (method, path, status,
 # PayPal debug id, time), which the gate keeps as the payment's audit trail.
+#
+# Without sandbox keys, VERA_PAYPAL_STANDIN=1 (the Docker judge build) answers
+# these same calls in memory (app/feature/paypal_standin.py); keys always win.
 
 import json
 import logging
@@ -27,6 +30,7 @@ import httpx
 log = logging.getLogger("veracity.paypal")
 
 SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
+STANDIN_PREFIX = "STANDIN-"  # every id the stand-in makes up starts with this
 TOKEN_MARGIN_S = 60  # refresh the token a minute before PayPal says it expires
 
 
@@ -233,11 +237,27 @@ def configured() -> bool:
     return bool(os.environ.get("PAYPAL_CLIENT_ID") and os.environ.get("PAYPAL_CLIENT_SECRET"))
 
 
+def standin_active() -> bool:
+    """No sandbox keys, and this build answers PayPal's calls with the in-memory stand-in."""
+    return os.environ.get("VERA_PAYPAL_STANDIN") == "1" and not configured()
+
+
+def environment_of(order_id: str | None) -> str:
+    """Who answered for this order: "standin" or the PayPal "sandbox". The report keeps it, so nobody mistakes one for the other."""
+    return "standin" if (order_id or "").startswith(STANDIN_PREFIX) else "sandbox"
+
+
 def get_client() -> PayPalClient:
-    """The sandbox client built from PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET."""
+    """The sandbox client built from PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET, or the stand-in without them."""
     global _client
     with _client_lock:
         if _client is None:
+            if standin_active():
+                from app.feature import paypal_standin
+
+                log.warning("No PayPal sandbox keys: Protected Send uses the in-memory stand-in, not PayPal")
+                _client = paypal_standin.shared().client()
+                return _client
             if not configured():
                 raise PayPalNotConfigured(
                     "PayPal isn't set up: put PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET from a sandbox app in .env"

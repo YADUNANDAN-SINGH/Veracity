@@ -8,7 +8,8 @@
  * alert event; a held payment appears full width under it.
  * "End call & build report" stops capture and keeps the report for Step 4.
  * An uploaded recording (the full judge build) uses this same page: it starts with
- * POST /api/session/upload, and says when the file has played to the end.
+ * POST /api/session/upload, and says when the file has played to the end. A recorded
+ * sample call plays its recording here too, while its scores replay.
  */
 import { useEffect } from 'react'
 import Panel from '../../components/ui/Panel'
@@ -18,6 +19,7 @@ import AlertBanner from '../../components/ui/AlertBanner'
 import LevelMeter from '../../components/live/LevelMeter'
 import ScoreMeter from '../../components/live/ScoreMeter'
 import VoiceTimeline from '../../components/live/VoiceTimeline'
+import ReplayAudio from '../../components/live/ReplayAudio'
 import Transcript from '../../components/live/Transcript'
 import RedFlagList from '../../components/live/RedFlagList'
 import SayBox from '../../components/live/SayBox'
@@ -65,7 +67,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, re
           <h1 className="live-page__number">{callerNumber || 'Unknown number'}</h1>
           <p className="t-code muted live-page__capture">{captureLine(live, health)}</p>
           {/* Shown here, not only in the banner: a scam alert takes the banner's place */}
-          {live.upload && live.audioDone && status === 'live' && (
+          {(live.upload || live.replay) && live.audioDone && status === 'live' && (
             <p className="t-label live-page__recording-done" role="status">
               Recording finished. End call & build report.
             </p>
@@ -76,7 +78,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, re
         </div>
       </header>
 
-      <Banner live={live} uploading={Boolean(recording)} />
+      <Banner live={live} uploading={Boolean(recording)} standin={Boolean(paymentConfig?.standin)} />
 
       {decided.length > 0 && (
         <div className="live-page__gates">
@@ -104,7 +106,7 @@ export default function LivePage({ live, number, health, saveAudio, scenario, re
             <ScoreMeter kind="script" score={live.scriptScore} flags={live.flags} />
           </Panel>
           {paymentConfig && isLive && (
-            <Panel title="Protected Send" action={<Badge icon="shield">PayPal</Badge>}>
+            <Panel title="Protected Send" action={<Badge icon="shield">{paymentConfig.standin ? 'PayPal stand-in' : 'PayPal'}</Badge>}>
               {paymentConfig.enabled ? (
                 <ProtectedSend
                   key={live.sessionId}
@@ -129,11 +131,12 @@ export default function LivePage({ live, number, health, saveAudio, scenario, re
           <Panel title="AI voice">
             {noVoiceScore ? (
               <p className="t-body-sm muted">
-                A scripted replay has no audio, so there is no AI-voice score, and Veracity doesn’t invent one. On a
-                real call the Spectra-0 model scores the caller’s voice every second.
+                A scripted replay has no audio, so there is no AI-voice score, and Veracity doesn’t invent one. To see
+                Spectra-0 score a voice every second, replay the ElevenLabs recording or upload your own in Step 2.
               </p>
             ) : (
               <div className="live-page__voice">
+                {live.replay?.audio_url && <ReplayAudio src={live.replay.audio_url} elapsed={live.elapsed} live={status === 'live'} />}
                 <ScoreMeter kind="voice" voice={live.voice} heard={heard} aiSince={aiSince} />
                 <VoiceTimeline levels={live.levels} series={live.series} live={status === 'live'} elapsed={live.elapsed} />
               </div>
@@ -193,6 +196,13 @@ function PrimaryAction({ live, onBack, onContinue, callerNumber, saveAudio, numb
         </Button>
       )
     default: // error
+      if (live.stopFailed) {
+        return (
+          <Button variant="primary" icon="refresh" onClick={live.stop}>
+            End call again
+          </Button>
+        )
+      }
       return (
         <>
           <Button variant="ghost" onClick={onBack}>
@@ -214,7 +224,19 @@ const ALERT_REASON = {
 }
 
 /** At most one banner: a scam alert beats everything else, and names every reason heard so far. */
-function Banner({ live, uploading }) {
+function Banner({ live, uploading, standin }) {
+  const protectedSend = standin
+    ? 'Protected Send uses the built-in PayPal stand-in: no sandbox keys are set, so nothing reaches PayPal.'
+    : 'Protected Send uses the real PayPal sandbox.'
+  // First, even over a scam alert: it's the only thing on screen that says what to do next
+  if (live.stopFailed) {
+    return (
+      <AlertBanner tone="caution" title="The call didn’t finish ending">
+        {live.error?.message}. Any payment made during it is still held, and no money has moved. Select End call again
+        to finish the call and get its report.
+      </AlertBanner>
+    )
+  }
   const scam = SCAM_ALERTS.map((kind) => live.alerts[kind]).filter(Boolean)
   if (scam.length === 1) {
     return (
@@ -264,11 +286,11 @@ function Banner({ live, uploading }) {
       </AlertBanner>
     )
   }
-  if (live.upload && live.audioDone && live.status !== 'ended') {
+  if ((live.upload || live.replay) && live.audioDone && live.status !== 'ended') {
     return (
       <AlertBanner tone="info" title="Recording finished. End call & build report.">
-        {live.upload.filename} has played to the end. Ending the call decides any payment made during it, then builds
-        the report.
+        {live.upload?.filename ?? 'The recording'} has played to the end. Ending the call decides any payment made
+        during it, then builds the report.
       </AlertBanner>
     )
   }
@@ -277,7 +299,7 @@ function Banner({ live, uploading }) {
       <AlertBanner tone="info" title={`Uploaded recording: ${live.upload.filename}`}>
         Analysed as it plays, like a live call: the Spectra-0 voice model, Whisper and the scam rules
         {live.upload.llm ? ' and the local LLM' : ' (no local LLM here)'}. On this machine’s CPU it can run slower than
-        the recording. Protected Send uses the real PayPal sandbox.
+        the recording. {protectedSend}
       </AlertBanner>
     )
   }
@@ -285,9 +307,9 @@ function Banner({ live, uploading }) {
     return (
       <AlertBanner tone="info" title={`Replayed call: ${live.replay.title}`}>
         {live.replay.voice_scored
-          ? 'A real recording, replayed with the voice model’s own scores. The scam rules run on the transcript live.'
+          ? 'A real recording. The voice scores and transcript are what Spectra-0 and Whisper produced on this file, computed ahead of time; the scam rules run live. To run the models here and now, upload it in Step 2.'
           : 'The transcript is scripted. The scam rules run on it live, line by line, exactly as on a real call.'}{' '}
-        Protected Send uses the real PayPal sandbox.
+        {protectedSend}
       </AlertBanner>
     )
   }
@@ -341,7 +363,9 @@ function captureLine(live, health) {
     return parts.join(' · ')
   }
   if (live.replay) {
-    const parts = [`replay · ${live.replay.source === 'recorded' ? 'recorded call' : 'scripted transcript'}`, 'real scam rules']
+    const parts = live.replay.source === 'recorded'
+      ? ['replay · recorded call', 'Spectra-0 + Whisper output computed ahead of time', 'real scam rules live']
+      : ['replay · scripted transcript', 'real scam rules']
     if (live.sessionId) parts.push(`session ${live.sessionId.slice(0, 8)}`)
     return parts.join(' · ')
   }

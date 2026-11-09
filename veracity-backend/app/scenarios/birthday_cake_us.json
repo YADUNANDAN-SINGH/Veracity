@@ -1,0 +1,23 @@
+{
+  "title": "A real grandson asking for $50 for a birthday cake",
+  "description": "Based on our real-call test: the user's grandson calls from his own number, at the bakery picking up Mom's birthday cake and a little short. He asks for $50, with no rush and no secrets. Low risk: the payment waits for the call to end, then goes through.",
+  "region": "US",
+  "order": 2.5,
+  "source": "scripted",
+  "caller_number": "+12025550172",
+  "lines": [
+    { "t": 3, "text": "Hi Grandma, it's Jake. Happy Sunday! How are you doing?" },
+    { "t": 10, "text": "I'm at the bakery right now, picking up Mom's birthday cake for tonight." },
+    { "t": 18, "text": "It costs a bit more than I thought and I'm a little short." },
+    { "t": 26, "text": "So can you please send me $50? No rush, $50 only. I'll pay you back at dinner." },
+    { "t": 35, "text": "Thanks, Grandma. Love you, see you tonight!" }
+  ],
+  "payment": {
+    "amount": "50.00",
+    "currency": "USD",
+    "recipient_name": "Jake (grandson)",
+    "contact_name": "Jake",
+    "contact_number": "+12025550172",
+    "note": "Mom's birthday cake"
+  }
+}

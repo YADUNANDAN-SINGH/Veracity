@@ -121,7 +121,7 @@ export default function NumberPage({
             onClick={() => switchMode('samples')}
           >
             <span className="t-label">Sample call</span>
-            <span className="t-body-sm muted">A scripted call through the real scam rules</span>
+            <span className="t-body-sm muted">A real AI-voice recording, or a scripted call</span>
           </button>
           <button
             type="button"
@@ -155,7 +155,8 @@ export default function NumberPage({
             <p className="t-body-sm muted number-page__samples-empty">Couldn’t load the sample calls: {samples.error.message}</p>
           ) : (
             <ul className="number-page__samples">
-              {scenarios.map((sample) => {
+              {/* The ones with real audio first: they're the ones that show the voice model */}
+              {[...scenarios].sort((a, b) => Number(b.voice_scored) - Number(a.voice_scored)).map((sample) => {
                 const selected = scenario?.id === sample.id
                 return (
                   <li key={sample.id}>
@@ -167,6 +168,7 @@ export default function NumberPage({
                     >
                       <span className="number-page__sample-head">
                         <span className="t-label">{sample.title}</span>
+                        {sample.voice_scored && <Badge icon="volume">Real audio</Badge>}
                         {selected && <Badge tone="low">Selected</Badge>}
                       </span>
                       <span className="t-body-sm muted">{sample.description}</span>

@@ -3,6 +3,7 @@
 #   GET  /api/payment/config                       PayPal client id for the browser, policy numbers
 #   POST /api/payment/orders                       { amount, currency, recipient_name, ... session_id }
 #                                                  → PayPal order with intent AUTHORIZE
+#   POST /api/payment/orders/{order_id}/standin-approve  the PayPal stand-in only: what the pop-up does
 #   POST /api/payment/orders/{order_id}/authorize  after the payer approves in PayPal → held or released
 #   GET  /api/payment/{id}                         the payment, its policy and its PayPal audit trail
 #   POST /api/payment/{id}/verify                  { outcome: "confirmed" | "denied" } after a callback
@@ -17,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from app.feature import payment_gate, payments_db, paypal_client, reports_db
+from app.feature import payment_gate, payments_db, paypal_client, paypal_standin, reports_db
 from app.feature.payment_gate import GateError
 from app.feature.paypal_client import PayPalError, PayPalNotConfigured
 from app.routes.session import SESSIONS
@@ -67,11 +68,12 @@ def _run(fn, *args, **kwargs):
 
 @router.get("/api/payment/config")
 def payment_config():
-    enabled = paypal_client.configured()
+    configured, standin = paypal_client.configured(), paypal_client.standin_active()
     return {
-        "enabled": enabled,
-        "environment": "sandbox",
-        "client_id": os.environ.get("PAYPAL_CLIENT_ID") if enabled else None,  # public by design
+        "enabled": configured or standin,
+        "standin": standin,  # no PayPal button: the dashboard approves through the route below
+        "environment": "standin" if standin else "sandbox",
+        "client_id": os.environ.get("PAYPAL_CLIENT_ID") if configured else None,  # public by design
         "currency": os.environ.get("VERA_CURRENCY", "USD"),
         "currencies": sorted(payment_gate.CURRENCIES),
         "payouts": payment_gate.PAYOUTS_ENABLED,
@@ -85,6 +87,14 @@ def payment_config():
 def create_order(body: CreatePayment):
     payment = _run(payment_gate.create, **body.model_dump())
     return payment_gate.view(payment)
+
+
+@router.post("/api/payment/orders/{order_id}/standin-approve")
+def standin_approve(order_id: str):
+    """What the payer does in PayPal's pop-up. Only exists while the stand-in is answering for PayPal."""
+    if not paypal_client.standin_active() or not paypal_standin.shared().approve(order_id):
+        raise HTTPException(status_code=404, detail="No stand-in order with that id.")
+    return {"approved": True}
 
 
 @router.post("/api/payment/orders/{order_id}/authorize")

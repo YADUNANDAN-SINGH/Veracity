@@ -8,18 +8,21 @@
  *   POST /api/session/{id}/stop                             → the JSON report
  *   POST /api/session/{id}/say  { text }                    a replayed call hears it as the caller's words
  *   GET  /api/session/scenarios                             calls that can be replayed without a phone
+ *   GET  /api/session/scenarios/{id}/audio                  a recorded call's audio file (its `audio_url`)
  *
  * Events on the socket, all with a `type`:
- *   mode        { replay, scenario, title, source, voice_scored, region }   first, on a replayed call
+ *   mode        { replay, scenario, title, source, voice_scored, audio_url, duration_s, region }   first, on a replayed call
  *               { replay: false, upload: true, filename, duration_s, region, llm }  first, on an uploaded recording
  *   level       { t, dbfs }                                   input meter
- *   voice       { t, p_ai, smoothed, state, speech }          state: LIKELY_HUMAN | UNCERTAIN | LIKELY_AI
+ *   voice       { t, p_ai, smoothed, state, verdict, peak, speech }   state and verdict: LIKELY_HUMAN | UNCERTAIN |
+ *                                                             LIKELY_AI. state is the voice now; verdict and peak are
+ *                                                             the call's, and a Likely AI verdict never goes back
  *   transcript  { t, text }                                   caller's side only
  *   flag        { category, severity, evidence, t, source }   source: "rule" | "llm"
  *   script      { score }                                     0–100
  *   alert       { kind, message }                             red banner
- *   audio_done  { t }                                         an uploaded recording has played to the end; the
- *                                                             call stays on until the user ends it
+ *   audio_done  { t }                                         an uploaded or recorded call's audio has played to
+ *                                                             the end; the call stays on until the user ends it
  *   report      { report }                                    full JSON report
  *   ended       {}                                            close the socket
  * `t` is seconds since the call started. p_ai and smoothed are 0–1.
@@ -63,8 +66,12 @@ export function uploadRecording(file, { callerNumber, onProgress } = {}) {
   })
 }
 
-/** End the call. An uploaded recording passes a longer timeout: the backend waits up to 90 s for Whisper. */
-export function stopSession(sessionId, { timeoutMs = 30000 } = {}) {
+/**
+ * End the call. Safe to send again: it's the same call, and the same report.
+ * The backend may wait about 40 s per payment on a PayPal that doesn't answer, and an
+ * uploaded recording passes a longer timeout, because it also waits up to 90 s for Whisper.
+ */
+export function stopSession(sessionId, { timeoutMs = 60000 } = {}) {
   return apiRequest(`/api/session/${sessionId}/stop`, { method: 'POST', timeoutMs })
 }
 

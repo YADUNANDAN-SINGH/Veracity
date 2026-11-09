@@ -26,11 +26,12 @@ const INITIAL = {
   status: 'idle',
   sessionId: null,
   demo: false,
-  replay: null, // the backend's `mode` event on a replayed call: { scenario, title, source, voice_scored, region }
+  replay: null, // the backend's `mode` event on a replayed call: { scenario, title, source, voice_scored, audio_url, region }
   upload: null, // the `mode` event on an uploaded recording: { filename, duration_s, region, llm }
   uploadProgress: null, // 0–1 while the file is being sent
-  audioDone: false, // the uploaded recording has played to the end
+  audioDone: false, // the uploaded or recorded call's audio has played to the end
   error: null,
+  stopFailed: false, // ending the call failed: stop() can be tried again, and it's the same call
   elapsed: 0,
   level: null, // latest dBFS
   levels: [], // { t, dbfs } for the waveform
@@ -57,7 +58,9 @@ function reducer(state, action) {
     case 'failed':
       return { ...state, status: 'error', error: action.error }
     case 'stopping':
-      return { ...state, status: 'stopping' }
+      return { ...state, status: 'stopping', stopFailed: false }
+    case 'stop-failed':
+      return { ...state, status: 'error', error: action.error, stopFailed: true }
     case 'stream-lost':
       return state.status === 'live' ? { ...state, streamLost: true } : state
     case 'event':
@@ -157,7 +160,7 @@ export function useLiveSession() {
       dispatch({ type: 'event', event: { type: 'report', report } })
       dispatch({ type: 'event', event: { type: 'ended' } })
     } catch (error) {
-      dispatch({ type: 'failed', error })
+      dispatch({ type: 'stop-failed', error })
     } finally {
       close?.()
     }

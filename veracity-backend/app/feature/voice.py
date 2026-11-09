@@ -23,7 +23,7 @@ import numpy as np
 log = logging.getLogger("veracity.voice")
 
 # app/feature/spectra0.py needs torch, so it's imported only when the model loads:
-# the hosted judge build has no torch and never scores a voice
+# the light judge build has no torch and never scores a voice
 SPECTRA0 = "lab260/spectra_0"
 VOICE_MODEL = os.environ.get("VERA_VOICE_MODEL", SPECTRA0)
 CALIBRATION_T = float(os.environ.get("VERA_VOICE_T", "1.0"))
@@ -116,17 +116,20 @@ def calibrate(p_raw: float, t: float = CALIBRATION_T) -> float:
 
 @dataclass
 class VoiceState:
-    state: str
+    state: str  # the voice right now (the timeline)
     smoothed: float
     changed: bool
+    verdict: str = "LIKELY_HUMAN"  # the call's verdict: once Likely AI, it stays Likely AI
+    peak: float = 0.0  # the highest smoothed score so far: the call's headline once it's Likely AI
 
 
 class VerdictSmoother:
     """LIKELY_AI only after AI_RUN windows in a row ≥ T_AI; one weaker window doesn't flip it back.
 
-    `state` follows the voice as it is now (the live meter); `verdict` is the call's:
+    `state` follows the voice as it is now (the timeline); `verdict` is the call's:
     once a voice has been Likely AI, the call stays Likely AI even if someone else
-    speaks afterwards (the payment gate and the report read this).
+    speaks, or the recording trails off into silence, afterwards (the headline meter,
+    the payment gate and the report read this).
     """
 
     def __init__(self):
@@ -134,6 +137,7 @@ class VerdictSmoother:
         self.run = 0
         self.state = "LIKELY_HUMAN"
         self.was_ai = False
+        self.peak = 0.0  # the same number as smoothed_peak() over the windows so far
 
     @property
     def verdict(self) -> str:
@@ -141,7 +145,7 @@ class VerdictSmoother:
 
     def update(self, p: float | None) -> VoiceState:
         if p is None:  # silent window: keep the last verdict
-            return VoiceState(self.state, round(self.ema or 0.0, 4), False)
+            return VoiceState(self.state, round(self.ema or 0.0, 4), False, self.verdict, round(self.peak, 4))
         prev = self.state
         self.ema = p if self.ema is None else SMOOTH_ALPHA * p + (1 - SMOOTH_ALPHA) * self.ema
         self.run = self.run + 1 if p >= T_AI else 0
@@ -152,7 +156,8 @@ class VerdictSmoother:
         else:
             self.state = "UNCERTAIN" if self.ema >= T_UNCERTAIN else "LIKELY_HUMAN"
         self.was_ai = self.was_ai or self.state == "LIKELY_AI"
-        return VoiceState(self.state, round(self.ema, 4), self.state != prev)
+        self.peak = max(self.peak, self.ema)
+        return VoiceState(self.state, round(self.ema, 4), self.state != prev, self.verdict, round(self.peak, 4))
 
 
 def smoothed_peak(p_ais) -> float:

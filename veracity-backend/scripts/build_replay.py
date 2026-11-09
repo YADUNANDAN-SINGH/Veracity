@@ -5,6 +5,9 @@
     python scripts/build_replay.py app/data/audio/<session>.wav --base grandparent_us \\
         --out app/scenarios/grandparent_us_recorded.json
 
+Any format ffmpeg reads works (an mp3, say), and --audio-file names a file in
+docs/Audio for the dashboard to play along with the replay.
+
 The recording goes through the same steps as a live call:
   voice       a 4 s window every second, calibrated with VERA_VOICE_T, silence not scored
   transcript  chunks of 6 to 12 s cut at pauses, each through Whisper (VERA_WHISPER_MODEL)
@@ -35,13 +38,17 @@ sys.path.insert(0, str(ROOT))
 
 from app.feature import transcriber, voice  # noqa: E402
 from app.feature.audio_capture import BLOCK_S, TARGET_SR, rms_dbfs, to_mono_16k  # noqa: E402
+from app.feature.file_capture import decode  # noqa: E402
 from app.feature.replay import load_scenario  # noqa: E402
 from app.feature.session import CHUNK_MAX_S, CHUNK_MIN_S, PAUSE_DB  # noqa: E402
 
 LANGUAGE_FOR_REGION = {"US": "en", "IN": "hi"}
 
 
-def load_wav(path: Path) -> np.ndarray:
+def load_audio(path: Path) -> np.ndarray:
+    """16 kHz mono float32: a WAV directly, anything else through ffmpeg, as an upload is decoded."""
+    if path.suffix.lower() != ".wav":
+        return decode(path)
     sr, x = wavfile.read(path)
     if np.issubdtype(x.dtype, np.integer):
         x = x.astype(np.float32) / np.iinfo(x.dtype).max
@@ -101,10 +108,10 @@ def transcript(x: np.ndarray, transcribe) -> list[dict]:
 
 
 def build(wav: Path, base_id: str, *, detector=None, transcribe=None, title: str | None = None,
-          description: str | None = None) -> dict:
+          description: str | None = None, audio_file: str | None = None) -> dict:
     base = load_scenario(base_id)
     base.pop("id", None)
-    x = load_wav(wav)
+    x = load_audio(wav)
     seconds = round(len(x) / TARGET_SR, 1)
     lines = transcript(x, transcribe or transcriber.transcribe)
     if not lines:
@@ -118,6 +125,7 @@ def build(wav: Path, base_id: str, *, detector=None, transcribe=None, title: str
         ),
         "order": base.get("order", 99) - 0.5,  # just before the scripted version in the picker
         "source": "recorded",
+        **({"audio_file": audio_file} if audio_file else {}),  # played in the browser along with the replay
         "lines": lines,
         "voice": {
             "model_id": voice.VOICE_MODEL,
@@ -135,12 +143,15 @@ def build(wav: Path, base_id: str, *, detector=None, transcribe=None, title: str
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("wav", type=Path, help="the recorded call (Save audio on: app/data/audio/<id>.wav)")
+    parser.add_argument("wav", type=Path, help="the recorded call: app/data/audio/<id>.wav (Save audio on), or any "
+                                               "audio file ffmpeg reads")
     parser.add_argument("--base", required=True, help="scenario to copy region, caller and payment from")
     parser.add_argument("--out", type=Path, required=True, help="where to write the new scenario")
     parser.add_argument("--language", help="Whisper language: en, hi or auto (default: from the base's region)")
     parser.add_argument("--title", help="title in the sample-call picker")
     parser.add_argument("--description", help="one or two sentences for the picker")
+    parser.add_argument("--audio-file", help="the recording's file name in docs/Audio, so the dashboard can play it")
+    parser.add_argument("--order", type=float, help="position in the picker (default: just before the base scenario)")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z0-9_]{1,40}", args.out.stem):
         raise SystemExit("--out must be named <id>.json, where <id> is lowercase letters, digits and _.")
@@ -149,7 +160,9 @@ def main() -> None:
     language = args.language or LANGUAGE_FOR_REGION.get(region, "auto")
     transcriber.LANGUAGE = None if language == "auto" else language
 
-    scenario = build(args.wav, args.base, title=args.title, description=args.description)
+    scenario = build(args.wav, args.base, title=args.title, description=args.description, audio_file=args.audio_file)
+    if args.order is not None:
+        scenario["order"] = args.order
     args.out.write_text(json.dumps(scenario, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     windows = scenario["voice"]["windows"]
     peak = max((w["p_ai"] for w in windows), default=0.0)

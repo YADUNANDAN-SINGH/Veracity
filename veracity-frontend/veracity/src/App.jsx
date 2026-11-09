@@ -9,6 +9,7 @@
  *
  * The judge builds offer two ways in: a sample call to replay, or (the full judge
  * build) an uploaded recording, picked in Step 2 and analysed by the real models.
+ * The sample call with a real recording is also one click from Step 1.
  */
 import { useState } from 'react'
 import AppHeader from './components/layout/AppHeader'
@@ -37,8 +38,8 @@ export default function App() {
   const payments = usePayments(live.sessionId, live.status === 'ended')
 
   const health = healthState.health
-  const hosted = health?.mode === 'judge'
-  const replayMode = hosted || Boolean(health?.fake_mode)
+  const judgeBuild = health?.mode === 'judge'
+  const replayMode = judgeBuild || Boolean(health?.fake_mode)
 
   /* The judge builds' two ways in, chosen on Step 1 or switched on Step 2 */
   function chooseSamples() {
@@ -59,12 +60,21 @@ export default function App() {
     setStep(3)
   }
 
+  /* Straight from Step 1 to this sample call */
+  function replaySample(sample) {
+    setUploadMode(false)
+    setScenario(sample)
+    if (sample.caller_number) numberState.check(sample.caller_number)
+    else numberState.clear()
+    goToLiveCall()
+  }
+
   return (
     <>
       <AppHeader
         step={step}
         simulation={Boolean(health?.fake_mode) || live.demo}
-        hosted={hosted}
+        judgeBuild={judgeBuild}
         replay={Boolean(live.replay)}
         callStatus={CALL_STATUS[live.status]}
         elapsed={live.elapsed}
@@ -76,20 +86,21 @@ export default function App() {
           saveAudio={saveAudio}
           onSaveAudioChange={setSaveAudio}
           onContinue={() => {
-            if (hosted) chooseSamples()
+            if (judgeBuild) chooseSamples()
             setStep(2)
           }}
           onUpload={() => {
             chooseUpload()
             setStep(2)
           }}
+          onReplay={replaySample}
         />
       ) : step === 2 ? (
         <NumberPage
           numberState={numberState}
           replayMode={replayMode}
-          uploadMode={hosted && uploadMode}
-          onMode={hosted ? (mode) => (mode === 'upload' ? chooseUpload() : chooseSamples()) : undefined}
+          uploadMode={judgeBuild && uploadMode}
+          onMode={judgeBuild ? (mode) => (mode === 'upload' ? chooseUpload() : chooseSamples()) : undefined}
           upload={health?.upload}
           recording={recording}
           onRecording={setRecording}
@@ -106,7 +117,7 @@ export default function App() {
           health={health}
           saveAudio={saveAudio}
           scenario={replayMode && !uploadMode ? scenario : null}
-          recording={hosted && uploadMode ? recording : null}
+          recording={judgeBuild && uploadMode ? recording : null}
           payments={payments}
           paymentConfig={paymentConfig}
           onBack={() => setStep(2)}

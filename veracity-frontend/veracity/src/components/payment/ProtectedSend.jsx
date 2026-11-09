@@ -5,10 +5,13 @@
  * The PayPal button (JS SDK v6) creates an order with intent AUTHORIZE. Once
  * the payer approves in PayPal, the backend reserves the money and the payment
  * gate decides with the call's risk at that moment. Nothing is sent before then.
+ * With no sandbox keys (config.standin), a plain button takes the same steps against
+ * the in-memory stand-in, and the panel says it isn't PayPal.
  */
 import { useState } from 'react'
 import { PayPalOneTimePaymentButton, PayPalProvider, usePayPal } from '@paypal/react-paypal-js/sdk-v6'
 import AlertBanner from '../ui/AlertBanner'
+import Button from '../ui/Button'
 import Icon from '../ui/Icon'
 import { formatClock } from '../../utils/formatTime'
 import './ProtectedSend.css'
@@ -53,7 +56,7 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
         </AlertBanner>
       )}
       <p className="t-body-sm protected-send__intro">
-        Asked for money on this call? Send it here instead. <strong>PayPal holds it</strong>, and Veracity
+        Asked for money on this call? Send it here instead. <strong>{config.standin ? 'The PayPal stand-in holds it' : 'PayPal holds it'}</strong>, and Veracity
         releases it only if the call checks out.
       </p>
 
@@ -90,6 +93,8 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
           <Icon name="info" size={14} />
           {problem}
         </p>
+      ) : config.standin ? (
+        <StandInButton payments={payments} body={body} />
       ) : (
         <PayPalProvider clientId={config.client_id} environment="sandbox" components={['paypal-payments']} pageType="checkout">
           <PayPalButton payments={payments} body={body} />
@@ -103,15 +108,42 @@ export default function ProtectedSend({ config, defaults, payments, sandboxBuyer
       )}
 
       <p className="t-body-sm muted protected-send__small">
-        <Icon name="lock" size={12} /> PayPal sandbox: test money only. Holds are cancelled automatically after{' '}
-        {config.hold_hours} hours.
-        {sandboxBuyer?.email && (
+        <Icon name="lock" size={12} />{' '}
+        {config.standin
+          ? 'PayPal stand-in, not PayPal: no sandbox keys are set, so nothing leaves this machine and no pop-up opens.'
+          : 'PayPal sandbox: test money only.'}{' '}
+        Holds are cancelled automatically after {config.hold_hours} hours.
+        {!config.standin && sandboxBuyer?.email && (
           <>
             {' '}Sandbox buyer: <span className="t-code">{sandboxBuyer.email}</span>
             {sandboxBuyer.password && <> / <span className="t-code">{sandboxBuyer.password}</span></>}
           </>
         )}
       </p>
+    </div>
+  )
+}
+
+/** No sandbox keys: approves the order with the stand-in, where a payer would use PayPal's pop-up. */
+function StandInButton({ payments, body }) {
+  const [busy, setBusy] = useState(false)
+
+  async function pay() {
+    setBusy(true)
+    try {
+      await payments.payWithStandIn(body)
+    } catch {
+      // the hook already holds the error, and the panel shows it
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="protected-send__button">
+      <Button icon="shield" disabled={busy} onClick={pay}>
+        {busy ? 'Approving…' : 'Approve with the PayPal stand-in'}
+      </Button>
     </div>
   )
 }

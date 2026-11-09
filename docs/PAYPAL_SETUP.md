@@ -2,14 +2,15 @@
 
 Protected Send only talks to the PayPal **sandbox** (`api-m.sandbox.paypal.com`): test accounts, test money, nothing real. This takes about 15 minutes. Steps 4 and 5 are optional.
 
+No keys? The Docker judge build falls back to a built-in in-memory stand-in ([`paypal_standin.py`](../veracity-backend/app/feature/paypal_standin.py)) so you can still try the whole flow. It answers the same API calls locally: nothing reaches PayPal, there's no pop-up, its ids and debug ids are made up, and the dashboard and the report say so. Keys always take priority over it.
+
 | Step | You get | Goes in |
 | --- | --- | --- |
 | [1. Sandbox app](#1-create-a-sandbox-app) | Client ID and secret | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
-| [2. Test buyer](#2-make-a-sandbox-test-buyer) | A sandbox personal login for the PayPal pop-up | `VERA_SANDBOX_BUYER_EMAIL`, `VERA_SANDBOX_BUYER_PASSWORD` (hosted build only) |
+| [2. Test buyer](#2-make-a-sandbox-test-buyer) | A sandbox personal login for the PayPal pop-up | `VERA_SANDBOX_BUYER_EMAIL`, `VERA_SANDBOX_BUYER_PASSWORD` (optional, judge builds) |
 | [3. Run it](#3-run-it-locally) | A held, then voided, $2,400 payment | — |
 | [4. Webhooks](#4-webhooks-optional) | PayPal's own events in the audit trail | `PAYPAL_WEBHOOK_ID` |
 | [5. Payouts](#5-payouts-optional) | Released money forwarded to the recipient | `PAYPAL_PAYOUTS=1` |
-| [6. Deploy](#6-deploy-the-judge-build-on-render) | A hosted copy of the light build (optional, not used for judging) | Render |
 
 ## 1. Create a sandbox app
 
@@ -51,13 +52,13 @@ In a second terminal, `cd veracity-frontend/veracity && npm run dev`, and open <
 
 The order and authorization ids on the held screen are PayPal's own, so you can look them up in the sandbox business account at [sandbox.paypal.com](https://www.sandbox.paypal.com).
 
-To try the other outcomes: the **concert money** sample call is low risk, so its $40 is released when the call ends. On the grandparent call, **Jake confirmed: release** starts a 15-minute cooling-off first (`VERA_COOL_OFF_MIN`).
+To try the other outcomes: the **birthday cake** and **concert money** sample calls are low risk, so their $50 and $40 are released when the call ends. On the grandparent call, **Jake confirmed: release** starts a 15-minute cooling-off first (`VERA_COOL_OFF_MIN`).
 
 ## 4. Webhooks (optional)
 
 Without webhooks, every status comes from PayPal's answers to Veracity's own API calls, which is enough for the demo. With them, PayPal also reports changes made outside Veracity (an authorization voided in PayPal, say), and each event shows up in the audit trail.
 
-1. Webhooks need a public HTTPS address: your Render URL (step 6), or a tunnel to your laptop such as `cloudflared tunnel --url http://localhost:8000` or `ngrok http 8000`.
+1. Webhooks need a public HTTPS address, so use a tunnel to your laptop such as `cloudflared tunnel --url http://localhost:8000` or `ngrok http 8000`.
 2. On **Apps & Credentials**, open the app, and under **Sandbox Webhooks** add a webhook:
    - URL: `https://<your-host>/api/paypal/webhook`
    - Events: `CHECKOUT.ORDER.APPROVED`, `PAYMENT.AUTHORIZATION.CREATED`, `PAYMENT.AUTHORIZATION.VOIDED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED`, `PAYMENT.CAPTURE.DECLINED`, and with Payouts `PAYMENT.PAYOUTSBATCH.SUCCESS`, `PAYMENT.PAYOUTSBATCH.DENIED`, `PAYMENT.PAYOUTS-ITEM.SUCCEEDED`, `PAYMENT.PAYOUTS-ITEM.FAILED`
@@ -75,22 +76,10 @@ With `PAYPAL_PAYOUTS=1`, a released payment is also forwarded from the sandbox b
 
 If a payout fails, the money stays captured in the business account and the trail says so ("Payout failed: the money is captured but not forwarded").
 
-## 6. Deploy the judge build on Render
-
-Optional, and not used for judging: judges run the Docker judge build on their own machine (README, *Run it with Docker*).
-
-1. Push the repo to GitHub.
-2. In the [Render dashboard](https://dashboard.render.com/), choose **New → Blueprint** and pick the repo. Render reads [`render.yaml`](../render.yaml): one Docker web service, with `/api/health` as its health check.
-3. Render asks for the values marked `sync: false`, so they never live in the repo: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` (leave it empty for now), `VERA_SANDBOX_BUYER_EMAIL` and `VERA_SANDBOX_BUYER_PASSWORD`.
-4. Once it's live, add the webhook (step 4) with the Render URL, put its id in `PAYPAL_WEBHOOK_ID`, and redeploy.
-5. Open the URL: the header says **Hosted demo** with a **JUDGE MODE** pill, and Step 1 lists what's real in this build.
-
-Two things about Render's free plan ([Render's docs](https://render.com/docs/free)): it spins a service down after 15 minutes without traffic, and the next visitor waits about a minute; and its disk is wiped on every spin-down, restart or redeploy, so payments and reports start fresh. While judging is on, switch the service to a paid instance so no judge lands on a cold start.
-
 ## What runs where
 
 | | Where it runs | What PayPal sees |
 | --- | --- | --- |
-| The call's audio, transcript and voice scores | Your laptop (or, in the judge build, nowhere: the call is replayed) | Nothing |
+| The call's audio, transcript and voice scores | Your own machine: the laptop on a live call, the Docker container for the judge build | Nothing |
 | Creating, authorizing, capturing and voiding the payment | The backend, with the secret | The amount, the currency, a description with the recipient's name, and the payment's and call's ids |
 | Approving the payment | PayPal's pop-up, through the JavaScript SDK v6 | The payer's login, as with any PayPal checkout |

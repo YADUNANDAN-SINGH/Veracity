@@ -60,3 +60,27 @@ def test_prepare_matches_the_training_window():
     assert short.shape == (spectra0.N_SAMPLES,)
     assert np.allclose(short[:48_000], emphasised[:48_000])  # repeated from its start
     assert np.allclose(short[48_000:], emphasised[:spectra0.N_SAMPLES - 48_000])
+
+
+def test_the_peak_is_the_same_number_the_risk_score_uses():
+    ps = [0.97, 0.99, 0.99, 0.13, 0.64, 0.98]
+    smoother, _ = run(ps)
+    assert smoother.peak == pytest.approx(voice.smoothed_peak(ps))
+
+
+def test_a_trailing_silence_doesnt_lower_a_likely_ai_calls_headline():
+    # A cloned voice, then the recording trails off: quiet windows that still get
+    # scored as human, then silence. The score right now falls; the call's doesn't.
+    smoother, _ = run([0.95] * 5)
+    latched = smoother.update(0.95)
+    for p in [0.05, 0.02, 0.01, None, None]:
+        state = smoother.update(p)
+    assert state.state == "LIKELY_HUMAN" and state.smoothed < 0.40  # the timeline follows the voice
+    assert state.verdict == "LIKELY_AI" and state.peak == latched.peak == pytest.approx(0.95)  # the headline holds
+
+
+def test_before_a_call_turns_likely_ai_its_verdict_follows_the_voice():
+    smoother = voice.VerdictSmoother()
+    assert smoother.update(0.9).verdict == "UNCERTAIN"
+    assert smoother.update(0.05).verdict == "UNCERTAIN"
+    assert smoother.update(0.05).verdict == "LIKELY_HUMAN"

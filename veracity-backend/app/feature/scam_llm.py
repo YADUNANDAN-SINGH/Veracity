@@ -60,7 +60,7 @@ def analyse(transcript: str) -> ScriptVerdict | None:
     """The LLM's verdict on the transcript, with made-up quotes removed; None if Ollama is unavailable."""
     try:
         from ollama import Client
-    except ImportError:  # the hosted judge build has no local LLM; the rules carry on alone
+    except ImportError:  # the judge builds have no local LLM; the rules carry on alone
         return None
 
     text = transcript[-TRANSCRIPT_LIMIT:]

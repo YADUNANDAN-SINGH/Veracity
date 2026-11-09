@@ -58,6 +58,12 @@ def no_audio_message() -> str:
     )
 
 
+def voice_event(t: int, p: float | None, vs: voice.VoiceState) -> dict:
+    """One second of the voice: a score (p), or None for a pause. `state` is the voice now; `verdict` and `peak` are the call's."""
+    return {"type": "voice", "t": t, "p_ai": p, "smoothed": vs.smoothed, "state": vs.state, "verdict": vs.verdict,
+            "peak": vs.peak, "speech": p is not None}
+
+
 class Session:
     # The "nothing is reaching BlackHole" alert; an uploaded recording (app/feature/upload.py) turns it off
     watch_routing = True
@@ -242,8 +248,7 @@ class Session:
         detector = voice.detector_if_ready()
         speech = voice.scorable(window)  # 3 s of the call, and not silence
         if not speech or detector is None:
-            vs = self.smoother.update(None)
-            self._publish({"type": "voice", "t": t, "p_ai": None, "smoothed": vs.smoothed, "state": vs.state, "speech": False})
+            self._publish(voice_event(t, None, self.smoother.update(None)))
             return
 
         p = round(voice.calibrate(detector.p_fake(window)), 4)
@@ -253,7 +258,7 @@ class Session:
         """One scored window: smooth it, keep it for the report, publish it, alert once on Likely AI."""
         vs = self.smoother.update(p)
         self.windows.append({"t_start": round(max(0.0, t - window_s), 1), "t_end": float(t), "p_ai": p})
-        self._publish({"type": "voice", "t": t, "p_ai": p, "smoothed": vs.smoothed, "state": vs.state, "speech": True})
+        self._publish(voice_event(t, p, vs))
         if vs.state == "LIKELY_AI" and "voice" not in self.alerted:
             self.alerted.add("voice")
             self._publish({"type": "alert", "kind": "voice", "message": VOICE_ALERT})

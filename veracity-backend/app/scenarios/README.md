@@ -11,6 +11,7 @@ exactly as in a live call. Each file is `<id>.json`, where `<id>` is lowercase l
   "region": "US",                 // next steps and number checks follow this region
   "order": 1,                     // position in the picker
   "source": "scripted",           // "scripted" (hand-written lines) or "recorded" (a real recording)
+  "audio_file": "elevenlabs_scam_sample.mp3", // optional, recorded only: a file in docs/Audio the dashboard plays along with the replay
   "caller_number": "+12025550143",// fictional 555-01xx numbers only; null for a hidden caller ID
   "lines": [ { "t": 3, "text": "What the caller says at 3 s" } ],
   "voice": {                      // only for "recorded": the real model's output on that recording
@@ -29,7 +30,7 @@ exactly as in a live call. Each file is `<id>.json`, where `<id>` is lowercase l
 
 Scripted scenarios have **no voice score**: the UI says so instead of inventing one.
 To replay a real recording with the real model's voice scores, record a call with
-*Save audio* on, then on the Mac run:
+*Save audio* on (or use any audio file you have consent for), then on the Mac run:
 
 ```bash
 cd veracity-backend
@@ -43,3 +44,13 @@ the base scenario's region (`en` for US, `hi` for India); pass `--language` to c
 it with `VERA_SCENARIO=grandparent_us_recorded`, or pick it in Step 2.
 
 Only record voices you have consent for: your own, or a clone of your own voice that you made.
+
+`elevenlabs_scam_us.json` and `real_voice_no_scam_us.json` were built this way, inside the judge image so their numbers are the CPU build's:
+
+```bash
+docker run --rm -v "$PWD/docs/Audio:/audio:ro" -v "$PWD/veracity-backend/app/scenarios:/out" veracity-judge \
+  python scripts/build_replay.py /audio/elevenlabs_scam_sample.mp3 --base grandparent_us \
+  --out /out/elevenlabs_scam_us.json --audio-file elevenlabs_scam_sample.mp3 --order 4
+```
+
+The judge image's build fails if the file in `docs/Audio` stops matching the SHA-256 in that scenario.

@@ -13,6 +13,7 @@ import AlertBanner from '../../components/ui/AlertBanner'
 import Toggle from '../../components/ui/Toggle'
 import SetupStep from '../../components/setup/SetupStep'
 import { buildChecks, FIX_COMMANDS } from '../../api/health'
+import { useScenarios } from '../../hooks/useScenarios'
 import './SetupPage.css'
 
 /**
@@ -22,8 +23,9 @@ import './SetupPage.css'
  * @param {Function} props.onSaveAudioChange
  * @param {Function} props.onContinue   go to Step 2 · Check number (judge mode: pick a sample call)
  * @param {Function} props.onUpload     judge mode: go to Step 2 to upload a call recording
+ * @param {Function} props.onReplay     judge mode: (sample call) => void, straight to Step 3 with this call
  */
-export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, onContinue, onUpload }) {
+export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, onContinue, onUpload, onReplay }) {
   const { health, loading, error, recheck } = healthState
   const simulation = Boolean(health?.fake_mode)
 
@@ -34,7 +36,7 @@ export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, o
   const canContinue = !loading && !error && (simulation || failing.length === 0)
 
   if (health?.mode === 'judge') {
-    return <JudgeSetup health={health} recheck={recheck} onContinue={onContinue} onUpload={onUpload} />
+    return <JudgeSetup health={health} recheck={recheck} onContinue={onContinue} onUpload={onUpload} onReplay={onReplay} />
   }
 
   return (
@@ -101,6 +103,11 @@ export default function SetupPage({ healthState, saveAudio, onSaveAudioChange, o
 /* How often to ask again while the full judge build is still loading its models */
 const UPLOAD_RECHECK_MS = 3000
 const MODELS_LOADING = 'models still loading'
+// The sample calls with a real recording, one click from here
+const RECORDED_SAMPLES = [
+  { id: 'elevenlabs_scam_us', label: 'Replay ElevenLabs AI Scam Audio' },
+  { id: 'real_voice_no_scam_us', label: 'Replay Real Voice (No Scam)' },
+]
 
 /**
  * The judge builds: nothing to set up. Say plainly what is real here and what
@@ -108,10 +115,16 @@ const MODELS_LOADING = 'models still loading'
  * judge build (Dockerfile.judge) can also analyse an uploaded recording with the
  * real models; the light one shows that option disabled, with the reason.
  */
-function JudgeSetup({ health, recheck, onContinue, onUpload }) {
+function JudgeSetup({ health, recheck, onContinue, onUpload, onReplay }) {
   const paypal = health.paypal ?? {}
   const upload = health.upload ?? { available: false, reason: 'needs the full judge build' }
   const models = upload.available || upload.reason === MODELS_LOADING // the full judge build
+  const { scenarios } = useScenarios(true)
+  const recorded = RECORDED_SAMPLES.flatMap(({ id, label }) => {
+    const sample = scenarios.find((s) => s.id === id && s.audio_url)
+    return sample ? [{ sample, label }] : []
+  })
+  const holdsWith = paypal.standin ? 'the built-in PayPal stand-in' : 'the real PayPal sandbox'
 
   // The models load for a few seconds after start-up: turn the upload option on when they're ready
   useEffect(() => {
@@ -142,7 +155,15 @@ function JudgeSetup({ health, recheck, onContinue, onUpload }) {
             paypal.webhooks ? ', verified webhooks' : ''
           }. Test money only.`,
         }
-      : { id: 'paypal', title: 'PayPal sandbox', status: 'warn', detail: 'Not configured on this server.' },
+      : paypal.standin
+        ? {
+            id: 'paypal',
+            title: 'PayPal stand-in, not PayPal',
+            status: 'warn',
+            statusText: 'No keys',
+            detail: 'No sandbox keys are set, so an in-memory stand-in answers the same Orders v2 and Payments v2 calls. Nothing reaches PayPal, and its ids and debug ids are made up. Add keys to .env for the real sandbox.',
+          }
+        : { id: 'paypal', title: 'PayPal sandbox', status: 'warn', detail: 'Not configured on this server.' },
     ...(models
       ? [
           {
@@ -180,10 +201,29 @@ function JudgeSetup({ health, recheck, onContinue, onUpload }) {
         <h1 className="t-display">Is the voice on your call real?</h1>
         <p className="muted setup-page__lede">
           {models
-            ? 'This is Veracity’s judge build. Replay a sample call through the real scam rules, or upload a call recording for the real AI-voice model and Whisper to analyse. If the caller asks for money, Protected Send holds it with the real PayPal sandbox until the call checks out.'
-            : 'This is Veracity’s hosted build. Nothing to install: Step 3 replays a sample call through the real scam rules, and if the caller asks for money, Protected Send holds it with the real PayPal sandbox until the call checks out.'}
+            ? `This is Veracity’s judge build, running on this machine. Replay a sample call through the real scam rules, or upload a call recording for the real AI-voice model and Whisper to analyse. If the caller asks for money, Protected Send holds it with ${holdsWith} until the call checks out.`
+            : `This is Veracity’s light judge build, running on this machine. Step 3 replays a sample call through the real scam rules, and if the caller asks for money, Protected Send holds it with ${holdsWith} until the call checks out.`}
         </p>
       </div>
+
+      {recorded.length > 0 && onReplay && (
+        <Panel title="Hear it tell an AI voice from a real one" action={<span className="t-body-sm muted">plays sound</span>}>
+          <div className="setup-page__replay">
+            <p className="t-body-sm">
+              Real recordings you can hear: a scam call in an AI voice we generated with ElevenLabs, and a real person
+              asking for $50. The voice scores and transcripts are what Spectra-0 and Whisper produced on these exact
+              files, computed ahead of time so they play in real time. The scam rules run on them live.
+            </p>
+            <div className="setup-page__replay-actions">
+              {recorded.map(({ sample, label }) => (
+                <Button key={sample.id} icon="volume" onClick={() => onReplay(sample)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      )}
 
       <Panel title="Real in this build" flush>
         <ol className="setup-page__checks">

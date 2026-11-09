@@ -21,6 +21,19 @@
   list-style: none;
 }
 
+/* Judge builds: one click to the sample calls with a real recording */
+.setup-page__replay {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+}
+
+.setup-page__replay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 /* Judge builds: the hint on its own line, both ways in side by side under it */
 .setup-page__footer--judge > p {
   flex-basis: 100%;

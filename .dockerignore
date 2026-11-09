@@ -8,3 +8,4 @@
 **/.env
 veracity-backend/app/data
 docs
+!docs/Audio/*.mp3

@@ -3,6 +3,9 @@
  *
  * kind="voice":  the latest voice event. The % is the smoothed score; the badge
  *                and colour come from the backend's `state`, never from the %.
+ *                Once the call's `verdict` is Likely AI, the headline holds the
+ *                call's `peak`: a pause, another speaker or the silence at the end
+ *                of a recording lowers the score right now, not what the call was.
  * kind="script": the script score 0–100 (Project Document §1.6).
  */
 import Badge from '../ui/Badge'
@@ -26,19 +29,19 @@ export default function ScoreMeter({ kind, voice, heard, aiSince, score, flags =
  * aiSince: seconds into the call when the voice first turned Likely AI, or null
  */
 function VoiceMeter({ voice, heard, aiSince = null }) {
-  const state = heard ? VOICE_STATES[voice?.state] : null
-  const value = state ? Math.round(voice.smoothed * 100) : null
+  const latched = Boolean(heard && (voice?.verdict === 'LIKELY_AI' || aiSince !== null))
+  const state = heard ? VOICE_STATES[latched ? 'LIKELY_AI' : voice?.state] : null
+  const now = state ? Math.round(voice.smoothed * 100) : null
+  const value = latched ? Math.round((voice.peak ?? voice.smoothed) * 100) : now
   const caption = !state
     ? 'Starts when the caller speaks.'
-    : voice.state === 'LIKELY_AI'
-      ? 'Turned Likely AI after 3 windows in a row ≥ 75% · one score per second'
-      : aiSince !== null
-        ? `An AI voice was heard from ${formatClock(aiSince)}, so the call stays flagged`
-        : 'Smoothed over recent windows · one score per second'
+    : latched
+      ? `The call’s peak. Turned Likely AI${aiSince !== null ? ` at ${formatClock(aiSince)}` : ''} after 3 windows in a row ≥ 75%, so it stays flagged. Voice right now: ${voice.speech ? `${now}%` : 'silence'}.`
+      : 'Smoothed over recent windows · one score per second'
 
   return (
     <div className="score-meter">
-      <p className="t-overline muted">AI-VOICE LIKELIHOOD</p>
+      <p className="t-overline muted">AI-VOICE LIKELIHOOD{latched && ' · PEAK'}</p>
       <div className="score-meter__row">
         <p className="score-meter__value" aria-live="polite">
           {value === null ? '–' : `${value}%`}

@@ -49,6 +49,11 @@ export async function apiRequest(path, { timeoutMs = DEFAULT_TIMEOUT_MS, signal,
   return response.json()
 }
 
+/** The URL of a backend path, for what the browser loads itself (an <audio> element, say). */
+export function apiUrl(path) {
+  return `${API_BASE}${path}`
+}
+
 /** WebSocket URL for a path, matching the page's protocol (ws / wss). */
 export function wsUrl(path) {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
